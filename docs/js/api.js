@@ -9,6 +9,39 @@ function getBaseUrl() {
 }
 const BASE_URL = getBaseUrl();
 
+// Retry when backend is asleep (e.g. Render free tier). Long timeout + retries so user sees loading instead of instant error.
+const FETCH_TIMEOUT_MS = 60000;  // 60s per attempt (Render can take 30–60s to wake)
+const FETCH_RETRIES = 3;         // 3 attempts total
+const RETRY_DELAY_MS = 3000;     // 3s between retries
+
+function isNetworkError(err) {
+    return err instanceof TypeError && (err.message === "Failed to fetch" || err.message === "Load failed");
+}
+
+async function fetchWithRetry(url, options = {}, onRetry) {
+    let lastErr;
+    for (let attempt = 1; attempt <= FETCH_RETRIES; attempt++) {
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+        try {
+            const res = await fetch(url, { ...options, signal: controller.signal });
+            clearTimeout(id);
+            return res;
+        } catch (err) {
+            clearTimeout(id);
+            lastErr = err;
+            const isRetryable = isNetworkError(err) || err.name === "AbortError";
+            if (isRetryable && attempt < FETCH_RETRIES) {
+                if (typeof onRetry === "function") onRetry(attempt);
+                await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+            } else {
+                throw err;
+            }
+        }
+    }
+    throw lastErr;
+}
+
 async function handleResponse(res) {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -26,12 +59,12 @@ async function handleResponse(res) {
     return data;
 }
 
-export async function getBundles() {
-    const res = await fetch(`${BASE_URL}/bundles`);
+export async function getBundles(onRetry) {
+    const res = await fetchWithRetry(`${BASE_URL}/bundles`, {}, onRetry);
     return handleResponse(res);
 }
 
-export async function createOrder(network, capacity, bundlePhone, email, paymentRefPhone = null) {
+export async function createOrder(network, capacity, bundlePhone, email, paymentRefPhone = null, onRetry) {
     const body = {
         network,
         capacity,
@@ -41,16 +74,16 @@ export async function createOrder(network, capacity, bundlePhone, email, payment
     if (paymentRefPhone != null && String(paymentRefPhone).trim() !== "") {
         body.payment_reference_phone = paymentRefPhone.trim();
     }
-    const res = await fetch(`${BASE_URL}/orders`, {
+    const res = await fetchWithRetry(`${BASE_URL}/orders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-    });
+    }, onRetry);
     return handleResponse(res);
 }
 
-export async function getOrderStatus(reference, refresh = false) {
+export async function getOrderStatus(reference, refresh = false, onRetry) {
     const url = `${BASE_URL}/orders/${encodeURIComponent(reference)}${refresh ? "?refresh=true" : ""}`;
-    const res = await fetch(url);
+    const res = await fetchWithRetry(url, {}, onRetry);
     return handleResponse(res);
 }

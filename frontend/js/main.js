@@ -74,16 +74,25 @@ function setModalVisible(modal, visible) {
 }
 
 async function loadBundles() {
+    const loadingMessage = document.getElementById("loadingScreenMessage");
+    const defaultMessage = "Preparing your data experience...";
+    const wakingMessage = "Waking up server, please wait…";
+
     if (bundleLoading) bundleLoading.hidden = false;
     if (bundleError) { bundleError.hidden = true; bundleError.textContent = ""; }
     try {
-        const data = await getBundles();
+        const data = await getBundles(() => {
+            if (loadingMessage) loadingMessage.textContent = wakingMessage;
+            if (bundleLoading) bundleLoading.textContent = wakingMessage;
+        });
+        if (loadingMessage) loadingMessage.textContent = defaultMessage;
         allNetworks = Array.isArray(data) ? data : [];
         renderBundlesForNetwork(selectedNetwork);
     } catch (err) {
+        if (loadingMessage) loadingMessage.textContent = defaultMessage;
         const msg = err.message || "Failed to load bundles.";
         if (bundleError) { bundleError.textContent = msg; bundleError.hidden = false; }
-        bundlesGrid.innerHTML = "";
+        if (bundlesGrid) bundlesGrid.innerHTML = "";
     } finally {
         if (bundleLoading) bundleLoading.hidden = true;
     }
