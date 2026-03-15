@@ -1,10 +1,11 @@
-// Use same origin when served with API (e.g. same domain); use localhost when dev or file://
+// Local: use dev server. Production (Vercel/Netlify): use Render backend. Override with window.API_BASE_URL if needed.
 function getBaseUrl() {
+    if (typeof window !== "undefined" && window.API_BASE_URL) return window.API_BASE_URL.replace(/\/$/, "");
     if (typeof window === "undefined") return "";
     const p = window.location.protocol;
     const h = window.location.hostname;
     if (p === "file:" || !h || h === "localhost" || h === "127.0.0.1") return "http://127.0.0.1:8000";
-    return ""; // production: same origin
+    return "https://bundlereseller-backend.onrender.com";
 }
 const BASE_URL = getBaseUrl();
 

@@ -42,7 +42,8 @@ Sell **MTN** and **Telecel** data bundles in Ghana. Customer-facing site for bro
 │   └── seed_bundles.py      # Seed bundles from config if DB empty
 ├── frontend/                # Customer UI (static; deploy to Vercel/Netlify)
 ├── admin/                   # Admin UI (static; same or separate host)
-├── docs/                    # Deployment checklist, etc.
+├── documentation/           # Guides (DEPLOYMENT.md, etc.); not the live site
+├── docs/                   # Built site for GitHub Pages (run scripts/build-gh-pages.*)
 ├── render.yaml              # Render blueprint (backend + Postgres)
 ├── requirements.txt
 └── .env.example
@@ -104,10 +105,23 @@ uvicorn app.main:app --reload --port 8000
 ## Deployment
 
 - **Backend + database:** Use the **Render** blueprint. From the repo root, connect the repo in Render and create a new **Blueprint**; it will use `render.yaml` to create the web service and Postgres DB. Set secrets (Paystack, delivery API credentials, admin, `FRONTEND_URL`, `CORS_ORIGINS`) in the Render dashboard.
-- **Frontend:** Deploy the `frontend/` directory to **Vercel** or **Netlify** (static site). Point the app at your Render backend URL (e.g. `https://bundlereseller-backend.onrender.com`) via build/runtime config so API requests go to production.
-- **Admin:** Deploy the `admin/` folder the same way (or under a path like `/admin` on the same site).
+- **Frontend + Admin:** Deploy to **Vercel**, **Netlify**, or **GitHub Pages** (see below). The app is already configured to call the Render backend when not on localhost.
 
-See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** for a full checklist (env vars, Paystack webhook, CORS, mobile checks).
+### GitHub Pages
+
+GitHub only serves from a folder named **`docs`**. Your written guides (e.g. DEPLOYMENT.md) live in **`documentation/`**. The **customer** and **admin** UIs live in `frontend/` and `admin/`, so a build step copies them into **`docs/`** for Pages to serve.
+
+1. **Build the site** (from repo root):
+   - **Windows (PowerShell):** `.\scripts\build-gh-pages.ps1`
+   - **Mac/Linux/Git Bash:** `bash scripts/build-gh-pages.sh`
+   This overwrites **`docs/`** with `index.html` (customer) at the root and `admin/` (admin panel).
+2. **Commit and push** the `docs/` folder.
+3. In GitHub: **Settings → Pages → Build and deployment**: Source = **Deploy from a branch**; Branch = `main`; Folder = **/docs**.
+4. Your site will be at `https://<username>.github.io/<repo-name>/` (customer). Admin: `https://<username>.github.io/<repo-name>/admin/`.
+
+After you change `frontend/` or `admin/`, run the script again, then commit and push `docs/`. In Render, set **CORS_ORIGINS** to your GitHub Pages URL (e.g. `https://yourusername.github.io/bundlereseller`) so the browser allows API requests.
+
+See **[documentation/DEPLOYMENT.md](documentation/DEPLOYMENT.md)** for a full checklist (env vars, Paystack webhook, CORS, mobile checks).
 
 ---
 
