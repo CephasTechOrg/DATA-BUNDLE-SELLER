@@ -1,0 +1,52 @@
+# =============================================================================
+# PRODUCTION BACKEND + DATABASE — Bundle Reseller
+# Frontend is hosted on Vercel/Netlify (HTML/CSS/JS); only API + DB on Render.
+# =============================================================================
+
+services:
+  - type: web
+    name: bundlereseller-backend
+    runtime: python
+    region: oregon
+    plan: free
+    branch: main
+
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+
+    healthCheckPath: /health
+
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: PIP_ROOT_USER_ACTION
+        value: ignore
+      # Database URL is provided by the Postgres instance below
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bundlereseller-db
+          property: connectionString
+      # Set these in Render Dashboard (Settings → Environment) or mark sync: false to be prompted
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: GHDATA_BASE_URL
+        sync: false
+      - key: GHDATA_API_KEY
+        sync: false
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      # Optional: your frontend URL for Paystack redirect and CORS (e.g. https://your-app.vercel.app)
+      - key: FRONTEND_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+
+databases:
+  - name: bundlereseller-db
+    plan: free
+    region: oregon
