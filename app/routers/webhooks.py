@@ -11,10 +11,9 @@ from ..database import SessionLocal
 from ..models import Order, Bundle
 from ..services.ghdataconnect_service import get_wallet_balance, send_bundle
 
-logging.basicConfig(level=logging.INFO)
-
+logger = logging.getLogger(__name__)
 router = APIRouter()
-PAYSTACK_SECRET_KEY = os.getenv("PAYSTACK_SECRET_KEY", "")
+PAYSTACK_SECRET_KEY = (os.getenv("PAYSTACK_SECRET_KEY") or "").strip()
 
 
 def _verify_paystack_signature(payload_bytes: bytes, signature: str) -> bool:
@@ -36,34 +35,32 @@ async def paystack_webhook(request: Request):
     signature = request.headers.get("x-paystack-signature", "")
 
     if not _verify_paystack_signature(body, signature):
-        logging.warning("Paystack webhook signature verification failed")
+        logger.warning("Paystack webhook signature verification failed")
         return Response(content="Invalid signature", status_code=401)
 
     payload = json.loads(body)
     event = payload.get("event")
 
     if event == "charge.success":
-
-        reference = payload["data"]["reference"]
-        logging.info(f"Webhook received for reference {reference}")
+        reference = payload.get("data", {}).get("reference")
+        if not reference:
+            logger.warning("Paystack webhook missing reference in data")
+            return {"status": "missing reference"}
+        logger.info("Webhook charge.success for reference=%s", reference)
 
         db: Session = SessionLocal()
-
         try:
             order = db.query(Order).filter(Order.reference == reference).first()
-
             if not order:
+                logger.warning("Webhook order not found: %s", reference)
                 return {"status": "order not found"}
 
-            # Idempotent: prevent duplicate delivery if Paystack retries
             if order.payment_status == "completed":
-                logging.info(f"Order {reference} already processed, skipping")
+                logger.info("Order %s already processed, skipping", reference)
                 return {"status": "already processed"}
 
             order.payment_status = "completed"
 
-            # Wallet balance check before sending bundle (use bundle cost from DB)
-            balance = await get_wallet_balance()
             bundle_row = (
                 db.query(Bundle)
                 .filter(
@@ -73,28 +70,52 @@ async def paystack_webhook(request: Request):
                 .first()
             )
             bundle_cost = float(bundle_row.cost_price_ghs) if bundle_row else 0.0
+            logger.info("Order %s: network=%s capacity=%s bundle_cost=%s", reference, order.network, order.capacity, bundle_cost)
+
+            balance = await get_wallet_balance()
+            if balance is None:
+                order.status = "failed"
+                db.commit()
+                logger.error(
+                    "Order %s: bundle provider wallet check failed (API error or missing GHDATA_BASE_URL/GHDATA_API_KEY). Order marked failed; no request sent to provider.",
+                    reference,
+                )
+                return {"status": "wallet check failed"}
 
             if balance < bundle_cost:
                 order.status = "failed"
                 db.commit()
-                logging.warning(f"Insufficient wallet balance for {reference}: balance={balance}, cost={bundle_cost}")
+                logger.warning(
+                    "Order %s: insufficient wallet balance balance=%s cost=%s",
+                    reference, balance, bundle_cost,
+                )
                 return {"status": "insufficient wallet balance"}
 
             result = await send_bundle(
                 order.reference,
                 order.phone_number,
-                order.capacity
+                order.capacity,
             )
 
-            logging.info(f"Bundle sent response: {result}")
-
-            # Update order status after delivery
             if result.get("success"):
                 order.status = "completed"
+                logger.info("Order %s: bundle sent successfully", reference)
             else:
                 order.status = "failed"
+                logger.warning("Order %s: bundle delivery failed: %s", reference, result.get("message", result))
 
             db.commit()
+        except ValueError as e:
+            logger.exception("Order %s: config error %s", reference, e)
+            try:
+                o = db.query(Order).filter(Order.reference == reference).first()
+                if o:
+                    o.payment_status = "completed"
+                    o.status = "failed"
+                    db.commit()
+            except Exception:
+                pass
+            return {"status": "config error", "message": str(e)}
         finally:
             db.close()
 
