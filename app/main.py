@@ -41,6 +41,22 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/health/ready")
+def health_ready():
+    """Optional: confirms DB is reachable and bundles table is seeded (for debugging)."""
+    from .database import SessionLocal
+    from .models import Bundle
+    try:
+        db = SessionLocal()
+        try:
+            count = db.query(Bundle).count()
+            return {"status": "ok", "db": "ok", "bundles_count": count}
+        finally:
+            db.close()
+    except Exception as e:
+        return {"status": "error", "db": "fail", "message": str(e)}, 503
+
+
 app.include_router(orders.router)
 app.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])
 app.include_router(admin.router_public, prefix="/admin", tags=["admin"])
