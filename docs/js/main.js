@@ -179,7 +179,8 @@ function copyRecipientToPayer() {
 
 async function handleOrderSubmit(e) {
     e.preventDefault();
-    if (!selectedBundle) return;
+    const bundle = selectedBundle;
+    if (!bundle) return;
     const recipientPhone = (document.getElementById("recipientPhone")?.value ?? "").trim();
     const payerPhone = (document.getElementById("payerPhone")?.value ?? "").trim();
     const email = (document.getElementById("customerEmail")?.value ?? "").trim();
@@ -196,8 +197,8 @@ async function handleOrderSubmit(e) {
     setModalVisible(processingModal, true);
     try {
         const order = await createOrder(
-            selectedBundle.network,
-            selectedBundle.capacity,
+            bundle.network,
+            bundle.capacity,
             recipientPhone,
             email,
             paymentRefPhone
