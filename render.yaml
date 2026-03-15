@@ -43,8 +43,9 @@ services:
       # Optional: your frontend URL for Paystack redirect and CORS (e.g. https://your-app.vercel.app)
       - key: FRONTEND_URL
         sync: false
+      # Required for frontend on GitHub Pages; add more origins comma-separated if needed
       - key: CORS_ORIGINS
-        sync: false
+        value: "https://cephastechorg.github.io"
 
 databases:
   - name: bundlereseller-db
