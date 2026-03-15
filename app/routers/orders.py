@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -8,6 +10,7 @@ from ..services.ghdataconnect_service import update_order_status
 from ..services.paystack_service import initialize_payment
 from ..utils.reference import generate_reference
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -75,10 +78,25 @@ async def create_order(order: CreateOrder, db: Session = Depends(get_db)):
         reference=reference,
     )
 
+    if not payment.get("status"):
+        msg = payment.get("message", "Payment initialization failed")
+        logger.warning("Paystack initialize failed for ref %s: %s", reference, msg)
+        raise HTTPException(status_code=502, detail=msg)
+
+    data = payment.get("data") or {}
+    authorization_url = data.get("authorization_url")
+    access_code = data.get("access_code")
+
+    if not authorization_url:
+        msg = payment.get("message", "No payment URL from provider")
+        logger.warning("Paystack missing authorization_url for ref %s: %s", reference, payment)
+        raise HTTPException(status_code=502, detail=msg)
+
     return {
         "reference": reference,
-        "payment_url": payment.get("data", {}).get("authorization_url"),
-        "status": "pending"
+        "payment_url": authorization_url,
+        "access_code": access_code,
+        "status": "pending",
     }
 
 

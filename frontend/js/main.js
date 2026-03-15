@@ -205,17 +205,22 @@ async function handleOrderSubmit(e) {
         );
         setModalVisible(processingModal, false);
         if (order.payment_url) {
-            if (typeof window.PaystackPop !== "undefined" && order.access_code) {
-                const popup = new window.PaystackPop();
-                popup.resumeTransaction(order.access_code, {
-                    onSuccess: () => showStatusFromReference(order.reference),
-                    onCancel: () => showToast("Payment cancelled."),
-                });
-            } else {
+            try {
+                if (typeof window.PaystackPop !== "undefined" && order.access_code) {
+                    const popup = new window.PaystackPop();
+                    popup.resumeTransaction(order.access_code, {
+                        onSuccess: () => showStatusFromReference(order.reference),
+                        onCancel: () => showToast("Payment cancelled."),
+                    });
+                } else {
+                    window.location.href = order.payment_url;
+                }
+            } catch (popupErr) {
                 window.location.href = order.payment_url;
             }
         } else {
-            showToast(order.message || order.detail || "Could not start payment.");
+            const msg = order.message || order.detail || "Could not start payment.";
+            showToast(msg);
             setModalVisible(orderModal, true);
         }
     } catch (err) {
