@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0d9488">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>Bundle Reseller – MTN & Telecel Data</title>
+    <link rel="stylesheet" href="style/style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Step 1–2: Loading screen + hero image path -->
+    <div id="loadingScreen" class="loading-screen">
+        <div class="loading-container">
+            <div class="loading-logo">
+                <div class="logo-pulse"><i class="fas fa-bolt"></i></div>
+            </div>
+            <div class="loading-progress">
+                <div class="progress-bar"><div class="progress-fill"></div></div>
+            </div>
+            <div class="loading-text">
+                <h3>Bundle Reseller</h3>
+                <p>Preparing your data experience...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 3: Header -->
+    <header class="header">
+        <div class="container">
+            <nav class="nav">
+                <div class="logo">
+                    <div class="logo-icon"><i class="fas fa-bolt"></i></div>
+                    <h2>Bundle Reseller</h2>
+                </div>
+                <div class="nav-links">
+                    <a href="#bundles" class="nav-link">Bundles</a>
+                    <a href="#how-it-works" class="nav-link">How It Works</a>
+                    <a href="#contact" class="nav-link">Contact</a>
+                </div>
+                <button type="button" class="mobile-menu" aria-label="Menu"><i class="fas fa-bars"></i></button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Step 4: Hero section (hero image: frontend/images/hero.png) -->
+    <section class="hero">
+        <div class="hero-background"></div>
+        <div class="container">
+            <div class="hero-content">
+                <h1 class="hero-title">
+                    Super-Fast
+                    <span class="gradient-text">MTN & Telecel Data</span>
+                </h1>
+                <p class="hero-description">
+                    Pick your network, choose a bundle, pay securely. Data delivered straight to your phone.
+                </p>
+                <div class="hero-actions">
+                    <button type="button" class="cta-button primary" id="heroBuyBtn">
+                        <span>Buy Data Now</span>
+                        <i class="fas fa-arrow-down"></i>
+                    </button>
+                    <button type="button" class="cta-button secondary" id="heroViewBtn">
+                        <span>View Bundles</span>
+                        <i class="fas fa-chart-bar"></i>
+                    </button>
+                </div>
+                <div class="hero-stats">
+                    <div class="stat">
+                        <div class="stat-number">1000+</div>
+                        <div class="stat-label">Happy Customers</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-number">99%</div>
+                        <div class="stat-label">Success Rate</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-number">24/7</div>
+                        <div class="stat-label">Support</div>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="hero-image-wrap">
+                    <img src="images/hero.png" alt="Data bundles" class="hero-image">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Steps 5–6: Bundles section + network tabs + skeleton -->
+    <section id="bundles" class="bundles-section">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-badge">Data Plans</div>
+                <h2 class="section-title">Choose Your Data Bundle</h2>
+                <p class="section-subtitle">Select MTN or Telecel, then pick a bundle. Pay with Paystack.</p>
+            </div>
+            <div class="network-tabs" role="tablist" aria-label="Network">
+                <button type="button" class="network-tab active" data-network="MTN" role="tab" aria-selected="true">MTN</button>
+                <button type="button" class="network-tab" data-network="Telecel" role="tab" aria-selected="false">Telecel</button>
+            </div>
+            <p id="bundleLoading" class="loading-inline" aria-live="polite">Loading bundles…</p>
+            <p id="bundleError" class="error-inline" hidden></p>
+            <div class="bundles-grid" id="bundlesGrid">
+                <div class="bundle-skeleton" aria-hidden="true">
+                    <div class="skeleton-image"></div>
+                    <div class="skeleton-text"></div>
+                    <div class="skeleton-price"></div>
+                    <div class="skeleton-button"></div>
+                </div>
+                <div class="bundle-skeleton" aria-hidden="true">
+                    <div class="skeleton-image"></div>
+                    <div class="skeleton-text"></div>
+                    <div class="skeleton-price"></div>
+                    <div class="skeleton-button"></div>
+                </div>
+                <div class="bundle-skeleton" aria-hidden="true">
+                    <div class="skeleton-image"></div>
+                    <div class="skeleton-text"></div>
+                    <div class="skeleton-price"></div>
+                    <div class="skeleton-button"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Step 7: How It Works -->
+    <section id="how-it-works" class="how-it-works">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-badge">Process</div>
+                <h2 class="section-title">How It Works</h2>
+                <p class="section-subtitle">Get your data in 3 simple steps</p>
+            </div>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-number">01</div>
+                    <div class="step-icon"><i class="fas fa-mobile-alt"></i></div>
+                    <h3>Choose Bundle</h3>
+                    <p>Select MTN or Telecel, then pick your data size. Prices shown include instant delivery.</p>
+                </div>
+                <div class="step-connector"></div>
+                <div class="step">
+                    <div class="step-number">02</div>
+                    <div class="step-icon"><i class="fas fa-credit-card"></i></div>
+                    <h3>Make Payment</h3>
+                    <p>Pay securely with Paystack (card or mobile money). Instant confirmation.</p>
+                </div>
+                <div class="step-connector"></div>
+                <div class="step">
+                    <div class="step-number">03</div>
+                    <div class="step-icon"><i class="fas fa-bolt"></i></div>
+                    <h3>Get Data</h3>
+                    <p>Data is delivered to the number you provided, usually within minutes.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Step 8: Order modal -->
+    <div id="orderModal" class="modal" role="dialog" aria-labelledby="orderModalTitle" aria-modal="true" hidden>
+        <div class="modal-backdrop" id="orderModalBackdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="orderModalTitle">Complete your order</h2>
+                <button type="button" class="close" id="orderModalClose" aria-label="Close">&times;</button>
+            </div>
+            <form id="orderForm" class="modal-form">
+                <div class="form-group">
+                    <label for="recipientPhone">Phone to receive bundle</label>
+                    <input type="tel" id="recipientPhone" required placeholder="e.g. 0241234567" autocomplete="tel">
+                    <i class="fas fa-sim-card form-icon"></i>
+                </div>
+                <div class="form-group">
+                    <label for="payerPhone">Phone for payment reference <span class="optional">(optional)</span></label>
+                    <input type="tel" id="payerPhone" placeholder="e.g. 0551234567" autocomplete="tel">
+                    <i class="fas fa-mobile-alt form-icon"></i>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="sameAsRecipient">
+                        <label for="sameAsRecipient" class="checkbox-label">Same as above</label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="customerEmail">Email</label>
+                    <input type="email" id="customerEmail" required placeholder="you@example.com" autocomplete="email">
+                    <i class="fas fa-envelope form-icon"></i>
+                </div>
+                <div class="bundle-summary">
+                    <h4>Order Summary</h4>
+                    <div id="bundleSummary" class="summary-content"></div>
+                </div>
+                <p id="orderFormError" class="error-inline" hidden></p>
+                <button type="submit" class="submit-btn" id="orderSubmitBtn">
+                    <i class="fas fa-credit-card"></i>
+                    <span>Proceed to Pay</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Step 9: Processing modal -->
+    <div id="processingModal" class="modal" role="dialog" aria-live="polite" hidden>
+        <div class="modal-backdrop"></div>
+        <div class="modal-content processing-content">
+            <div class="processing-animation"><div class="spinner"></div></div>
+            <h3>Processing Payment...</h3>
+            <p>Please wait while we initialize your payment</p>
+        </div>
+    </div>
+
+    <!-- Step 10: Success / order status modal -->
+    <div id="statusModal" class="modal" role="dialog" aria-labelledby="statusModalTitle" aria-modal="true" hidden>
+        <div class="modal-backdrop" id="statusModalBackdrop"></div>
+        <div class="modal-content success-content">
+            <div class="success-animation">
+                <div class="success-circle"><i class="fas fa-check"></i></div>
+                <div class="success-rings">
+                    <div class="ring ring-1"></div>
+                    <div class="ring ring-2"></div>
+                    <div class="ring ring-3"></div>
+                </div>
+            </div>
+            <h2 id="statusModalTitle">Order Status</h2>
+            <div id="statusContent" class="order-receipt"></div>
+            <button type="button" id="statusModalClose" class="success-btn">Done</button>
+        </div>
+    </div>
+
+    <!-- Step 11: Footer -->
+    <footer class="footer" id="contact">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <div class="logo">
+                        <div class="logo-icon"><i class="fas fa-bolt"></i></div>
+                        <h2>Bundle Reseller</h2>
+                    </div>
+                    <p>MTN and Telecel data bundles delivered to your phone. Pay with Paystack.</p>
+                    <div class="social-links">
+                        <a href="#" class="social-link" aria-label="WhatsApp"><i class="fab fa-whatsapp"></i></a>
+                        <a href="#" class="social-link" aria-label="Telegram"><i class="fab fa-telegram"></i></a>
+                    </div>
+                </div>
+                <div class="footer-links">
+                    <div class="footer-column">
+                        <h4>Quick Links</h4>
+                        <a href="#bundles">Data Bundles</a>
+                        <a href="#how-it-works">How It Works</a>
+                    </div>
+                    <div class="footer-column">
+                        <h4>Support</h4>
+                        <a href="#">Contact</a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; <span id="footerYear"></span> Bundle Reseller. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://js.paystack.co/v2/inline.js"></script>
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>

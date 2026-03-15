@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0d9488">
+    <title>Admin – Bundle Reseller</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="loginScreen" class="screen">
+        <div class="login-card">
+            <h1>Admin</h1>
+            <p class="login-subtitle">Bundle Reseller</p>
+            <form id="loginForm">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required autocomplete="username">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required autocomplete="current-password">
+                <p id="loginError" class="error" hidden></p>
+                <button type="submit" id="loginBtn">Sign in</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="dashboardScreen" class="screen" hidden>
+        <header class="header">
+            <div class="header-inner">
+                <h1>Admin</h1>
+                <button type="button" id="logoutBtn" class="btn btn-ghost">Sign out</button>
+            </div>
+        </header>
+
+        <main class="main">
+            <nav class="tabs" role="tablist">
+                <button type="button" class="tab active" data-tab="orders" aria-selected="true">Orders</button>
+                <button type="button" class="tab" data-tab="bundles" aria-selected="false">Bundles</button>
+            </nav>
+
+            <section class="stats" id="statsSection">
+                <h2>Overview</h2>
+                <div class="stats-grid" id="statsGrid">
+                    <div class="stat-card">
+                        <span class="stat-value" id="statTotalOrders">—</span>
+                        <span class="stat-label">Total orders</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-value" id="statRevenue">—</span>
+                        <span class="stat-label">Revenue (GHS)</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-value" id="statCompleted">—</span>
+                        <span class="stat-label">Completed</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-value" id="statFailed">—</span>
+                        <span class="stat-label">Failed</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-value" id="statPending">—</span>
+                        <span class="stat-label">Pending</span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="orders-section tab-panel" id="panelOrders" role="tabpanel">
+                <div class="section-head">
+                    <h2>Orders</h2>
+                    <div class="actions">
+                        <button type="button" id="exportCsvBtn" class="btn btn-secondary">Export CSV</button>
+                        <button type="button" id="refreshBtn" class="btn btn-primary">Refresh</button>
+                    </div>
+                </div>
+
+                <div class="filters" id="filters">
+                    <label>
+                        From
+                        <input type="date" id="filterFrom">
+                    </label>
+                    <label>
+                        To
+                        <input type="date" id="filterTo">
+                    </label>
+                    <label>
+                        Status
+                        <select id="filterStatus">
+                            <option value="">All</option>
+                            <option value="pending">Pending</option>
+                            <option value="completed">Completed</option>
+                            <option value="failed">Failed</option>
+                        </select>
+                    </label>
+                    <label>
+                        Payment
+                        <select id="filterPayment">
+                            <option value="">All</option>
+                            <option value="pending">Pending</option>
+                            <option value="completed">Completed</option>
+                        </select>
+                    </label>
+                    <button type="button" id="applyFiltersBtn" class="btn btn-primary">Apply</button>
+                </div>
+
+                <p id="ordersLoading" class="loading" hidden>Loading orders…</p>
+                <p id="ordersError" class="error" hidden></p>
+
+                <div class="table-wrap">
+                    <table class="orders-table" id="ordersTable">
+                        <thead>
+                            <tr>
+                                <th>Reference</th>
+                                <th>Network</th>
+                                <th>Size</th>
+                                <th>Price (₵)</th>
+                                <th>Status</th>
+                                <th>Payment</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ordersBody"></tbody>
+                    </table>
+                </div>
+
+                <div class="pagination" id="pagination">
+                    <span class="pagination-info" id="paginationInfo"></span>
+                    <div class="pagination-btns">
+                        <button type="button" id="prevBtn" class="btn btn-secondary" disabled>Previous</button>
+                        <button type="button" id="nextBtn" class="btn btn-secondary" disabled>Next</button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="bundles-section tab-panel" id="panelBundles" role="tabpanel" hidden>
+                <div class="section-head">
+                    <h2>Bundles</h2>
+                    <div class="actions">
+                        <button type="button" id="addBundleBtn" class="btn btn-primary">Add bundle</button>
+                        <button type="button" id="refreshBundlesBtn" class="btn btn-secondary">Refresh</button>
+                    </div>
+                </div>
+                <p id="bundlesLoading" class="loading" hidden>Loading bundles…</p>
+                <p id="bundlesError" class="error" hidden></p>
+                <div class="table-wrap">
+                    <table class="orders-table" id="bundlesTable">
+                        <thead>
+                            <tr>
+                                <th>Network</th>
+                                <th>Size</th>
+                                <th>Cost (₵)</th>
+                                <th>Selling (₵)</th>
+                                <th>Active</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bundlesBody"></tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <dialog id="bundleModal" class="modal-dialog">
+        <form id="bundleForm">
+            <h3 id="bundleModalTitle">Add bundle</h3>
+            <input type="hidden" id="bundleId" name="id">
+            <label>
+                Network
+                <select id="bundleNetwork" name="network" required>
+                    <option value="MTN">MTN</option>
+                    <option value="Telecel">Telecel</option>
+                </select>
+            </label>
+            <label>
+                Capacity (MB)
+                <input type="number" id="bundleCapacity" name="capacity_mb" min="1" step="1" required placeholder="e.g. 1000">
+            </label>
+            <label>
+                Cost price (₵)
+                <input type="number" id="bundleCost" name="cost_price_ghs" min="0" step="0.01" required>
+            </label>
+            <label>
+                Selling price (₵)
+                <input type="number" id="bundleSelling" name="selling_price_ghs" min="0" step="0.01" required>
+            </label>
+            <label class="checkbox-label">
+                <input type="checkbox" id="bundleActive" name="is_active" checked> Active (shown to customers)
+            </label>
+            <p id="bundleFormError" class="error" hidden></p>
+            <div class="modal-actions">
+                <button type="button" id="bundleModalCancel" class="btn btn-secondary">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save</button>
+            </div>
+        </form>
+    </dialog>
+
+    <script src="app.js"></script>
+</body>
+</html>
