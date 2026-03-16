@@ -4,6 +4,24 @@ When **Payment = completed** but **Status = failed** and GH Data Connect never s
 
 ---
 
+## 0. Test locally without real payment
+
+To test that the request is sent to GH Connect **without** deducting real money from Paystack:
+
+1. **Create an order** (frontend or API) so you have a reference. You can stop before completing Paystack—just get the order reference from the response or from the DB.
+2. In **.env** set: `ALLOW_WEBHOOK_SIMULATE=true` (do **not** set this on Render/production).
+3. Start the backend: `uvicorn app.main:app --reload`.
+4. Trigger the same logic as “payment completed”:
+   ```bash
+   curl -X POST "http://127.0.0.1:8000/webhooks/simulate-success" -H "Content-Type: application/json" -d "{\"reference\": \"YOUR_ORDER_REFERENCE\"}"
+   ```
+   Or with query param: `curl -X POST "http://127.0.0.1:8000/webhooks/simulate-success?reference=YOUR_ORDER_REFERENCE"`
+5. Check the terminal logs: you should see wallet request, then createOrder request/response. Check GH Connect portal to see if the order appeared.
+
+With `ALLOW_WEBHOOK_SIMULATE` unset or false, `POST /webhooks/simulate-success` returns 403.
+
+---
+
 ## 1. Confirm GH Data Connect API config (Render / .env)
 
 
