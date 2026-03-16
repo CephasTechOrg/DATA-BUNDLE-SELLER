@@ -18,11 +18,13 @@ def _check_config():
 async def get_wallet_balance():
     """
     Return wallet balance (float) or None if the API request failed.
-    Caller should not treat None as 0 - it means we could not check (e.g. wrong URL/key).
+    Per GH Data Connect docs: GET /v1/getWalletBalance, Authorization: Bearer <token>.
+    Response: { "success": true, "data": { "balance": "207.46" } } (balance is string).
     """
     _check_config()
     url = f"{BASE_URL.rstrip('/')}/v1/getWalletBalance"
     headers = {"Authorization": f"Bearer {API_KEY}"}
+    logger.info("Bundle provider wallet request: %s", url)
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.get(url, headers=headers)
@@ -46,17 +48,21 @@ async def get_wallet_balance():
 async def send_bundle(reference, phone, capacity):
     """
     Send bundle order to provider. Returns dict with 'success' (bool) and optional 'message'.
+    Payload per docs: { reference, msisdn, capacity }. We send capacity in MB (e.g. 1000 = 1GB).
     """
     _check_config()
     url = f"{BASE_URL.rstrip('/')}/v1/createIshareBundleOrder"
-    headers = {"Authorization": f"Bearer {API_KEY}"}
-    # Doc: POST /v1/createIshareBundleOrder with JSON { reference, msisdn, capacity } (capacity in MB)
+    headers = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
     payload = {"reference": reference, "msisdn": str(phone).strip(), "capacity": int(capacity)}
-    logger.info("Sending bundle to provider: ref=%s msisdn=%s capacity=%s", reference, phone, capacity)
+    logger.info("Bundle provider createOrder: url=%s payload=%s", url, payload)
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(url, json=payload, headers=headers)
-        body = response.json()
+        try:
+            body = response.json()
+        except Exception as e:
+            logger.warning("Bundle provider createOrder response not JSON: %s body=%s", e, response.text[:500])
+            return {"success": False, "message": f"Invalid response: {response.status_code}"}
         logger.info("Bundle provider createOrder response HTTP %s: %s", response.status_code, body)
 
         if not response.is_success:

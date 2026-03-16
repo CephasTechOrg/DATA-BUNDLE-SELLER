@@ -73,16 +73,14 @@ async def paystack_webhook(request: Request):
             logger.info("Order %s: network=%s capacity=%s bundle_cost=%s", reference, order.network, order.capacity, bundle_cost)
 
             balance = await get_wallet_balance()
+            if balance is not None:
+                logger.info("Order %s: wallet balance=%.2f cost=%.2f", reference, balance, bundle_cost)
             if balance is None:
-                order.status = "failed"
-                db.commit()
-                logger.error(
-                    "Order %s: bundle provider wallet check failed (API error or missing GHDATA_BASE_URL/GHDATA_API_KEY). Order marked failed; no request sent to provider.",
+                logger.warning(
+                    "Order %s: wallet check failed (API error or bad URL/key). Attempting bundle send anyway.",
                     reference,
                 )
-                return {"status": "wallet check failed"}
-
-            if balance < bundle_cost:
+            elif balance < bundle_cost:
                 order.status = "failed"
                 db.commit()
                 logger.warning(
