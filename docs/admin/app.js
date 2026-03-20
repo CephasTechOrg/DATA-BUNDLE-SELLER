@@ -45,6 +45,20 @@
     const bundleFormError = document.getElementById("bundleFormError");
     const bundleModalTitle = document.getElementById("bundleModalTitle");
 
+    // ----- History -----
+    let currentSkipHistory = 0;
+    let lastHistoryTotal = 0;
+    const historyBody = document.getElementById("historyBody");
+    const historyLoading = document.getElementById("historyLoading");
+    const historyError = document.getElementById("historyError");
+    const refreshHistoryBtn = document.getElementById("refreshHistoryBtn");
+    const historyFrom = document.getElementById("historyFrom");
+    const historyTo = document.getElementById("historyTo");
+    const applyHistoryFiltersBtn = document.getElementById("applyHistoryFiltersBtn");
+    const historyPrevBtn = document.getElementById("historyPrevBtn");
+    const historyNextBtn = document.getElementById("historyNextBtn");
+    const historyPaginationInfo = document.getElementById("historyPaginationInfo");
+
     const TOKEN_KEY = "adminToken";
 
     function getAuthHeader() {
@@ -171,9 +185,25 @@
         <td data-label="Status"><span class="badge ${badgeClass(o.status)}">${escapeHtml(o.status || "—")}</span></td>
         <td data-label="Payment"><span class="badge ${badgeClass(o.payment_status)}">${escapeHtml(o.payment_status || "—")}</span></td>
         <td data-label="Date">${formatDate(o.created_at)}</td>
+        <td data-label="Actions">${
+                        (o.payment_status === "completed" && o.status === "pending")
+                            ? `<div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                                    <button type="button" class="btn btn-small btn-primary btn-mark-completed" data-reference="${escapeHtml(o.reference || "")}">Mark Completed</button>
+                                    <button type="button" class="btn btn-small btn-danger btn-mark-failed" data-reference="${escapeHtml(o.reference || "")}">Mark Failed</button>
+                               </div>`
+                            : "<span style='color:var(--text-muted)'>—</span>"
+                    }</td>
       </tr>`
             )
             .join("");
+
+        // Attach fulfillment actions for manual delivery.
+        ordersBody.querySelectorAll(".btn-mark-completed").forEach((btn) => {
+            btn.addEventListener("click", () => markOrderFulfillment(btn.getAttribute("data-reference"), "completed"));
+        });
+        ordersBody.querySelectorAll(".btn-mark-failed").forEach((btn) => {
+            btn.addEventListener("click", () => markOrderFulfillment(btn.getAttribute("data-reference"), "failed"));
+        });
 
         const fromRow = currentSkip + 1;
         const toRow = Math.min(currentSkip + items.length, lastOrdersTotal);
@@ -189,6 +219,73 @@
         const div = document.createElement("div");
         div.textContent = s;
         return div.innerHTML;
+    }
+
+    async function markOrderFulfillment(reference, nextStatus) {
+        if (!reference) return;
+        const { ok, status: resStatus } = await api(
+            "/admin/orders/" + encodeURIComponent(reference) + "/status",
+            { method: "PATCH", body: JSON.stringify({ status: nextStatus }) },
+        );
+        if (resStatus === 401) return;
+        if (!ok) return;
+        // Refresh everything so badges, stats, and history stay consistent.
+        await loadStats();
+        await loadOrders();
+        await loadHistory();
+    }
+
+    async function loadHistory() {
+        if (!historyBody) return;
+        historyLoading.hidden = false;
+        historyError.hidden = true;
+
+        const from = historyFrom?.value || undefined;
+        const to = historyTo?.value || undefined;
+
+        const params = new URLSearchParams();
+        params.set("skip", String(currentSkipHistory));
+        params.set("limit", String(PAGE_SIZE));
+        if (from) params.set("from_date", from);
+        if (to) params.set("to_date", to);
+
+        // History: only orders that are both paid and fulfilled (completed/failed).
+        params.set("payment_status", "completed");
+        params.set("status", "completed,failed");
+
+        const { ok, data, status: resStatus } = await api("/admin/orders?" + params.toString());
+        historyLoading.hidden = true;
+        if (resStatus === 401) return;
+        if (!ok || !data) {
+            historyError.textContent = "Failed to load history.";
+            historyError.hidden = false;
+            return;
+        }
+
+        lastHistoryTotal = data.total ?? 0;
+        const items = data.items ?? [];
+        historyBody.innerHTML = items
+            .map(
+                (o) =>
+                    `<tr>
+                        <td data-label="Reference"><code>${escapeHtml(o.reference || "—")}</code></td>
+                        <td data-label="Network">${escapeHtml(o.network || "—")}</td>
+                        <td data-label="Size">${formatCapacity(o.capacity)}</td>
+                        <td data-label="Price">${o.price != null ? "₵" + Number(o.price).toFixed(2) : "—"}</td>
+                        <td data-label="Outcome"><span class="badge ${badgeClass(o.status)}">${escapeHtml(o.status || "—")}</span></td>
+                        <td data-label="Date">${formatDate(o.created_at)}</td>
+                    </tr>`
+            )
+            .join("");
+
+        const fromRow = currentSkipHistory + 1;
+        const toRow = Math.min(currentSkipHistory + items.length, lastHistoryTotal);
+        historyPaginationInfo.textContent =
+            lastHistoryTotal === 0
+                ? "No history items"
+                : `Showing ${fromRow}–${toRow} of ${lastHistoryTotal}`;
+        historyPrevBtn.disabled = currentSkipHistory === 0;
+        historyNextBtn.disabled = currentSkipHistory + items.length >= lastHistoryTotal;
     }
 
     function exportCsv() {
@@ -237,9 +334,19 @@
                 });
                 panels.forEach((p) => {
                     const isOrders = p.id === "panelOrders";
-                    p.hidden = (target === "orders" && !isOrders) || (target === "bundles" && isOrders);
+                    const isBundles = p.id === "panelBundles";
+                    const isHistory = p.id === "panelHistory";
+                    p.hidden = !(
+                        (target === "orders" && isOrders) ||
+                        (target === "bundles" && isBundles) ||
+                        (target === "history" && isHistory)
+                    );
                 });
                 if (target === "bundles") loadBundles();
+                if (target === "history") {
+                    currentSkipHistory = 0;
+                    loadHistory();
+                }
             });
         });
     }
@@ -426,6 +533,28 @@
         currentSkip += PAGE_SIZE;
         loadOrders();
     });
+
+    if (refreshHistoryBtn) {
+        refreshHistoryBtn.addEventListener("click", () => loadHistory());
+    }
+    if (applyHistoryFiltersBtn) {
+        applyHistoryFiltersBtn.addEventListener("click", () => {
+            currentSkipHistory = 0;
+            loadHistory();
+        });
+    }
+    if (historyPrevBtn) {
+        historyPrevBtn.addEventListener("click", () => {
+            currentSkipHistory = Math.max(0, currentSkipHistory - PAGE_SIZE);
+            loadHistory();
+        });
+    }
+    if (historyNextBtn) {
+        historyNextBtn.addEventListener("click", () => {
+            currentSkipHistory += PAGE_SIZE;
+            loadHistory();
+        });
+    }
 
     if (loginScreen && dashboardScreen) {
         if (getAuthHeader()) {

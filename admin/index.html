@@ -35,6 +35,7 @@
             <nav class="tabs" role="tablist">
                 <button type="button" class="tab active" data-tab="orders" aria-selected="true">Orders</button>
                 <button type="button" class="tab" data-tab="bundles" aria-selected="false">Bundles</button>
+                <button type="button" class="tab" data-tab="history" aria-selected="false">History</button>
             </nav>
 
             <section class="stats" id="statsSection">
@@ -115,6 +116,7 @@
                                 <th>Status</th>
                                 <th>Payment</th>
                                 <th>Date</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="ordersBody"></tbody>
@@ -154,6 +156,54 @@
                         </thead>
                         <tbody id="bundlesBody"></tbody>
                     </table>
+                </div>
+            </section>
+
+            <section class="orders-section tab-panel" id="panelHistory" role="tabpanel" hidden>
+                <div class="section-head">
+                    <h2>History</h2>
+                    <div class="actions">
+                        <button type="button" id="refreshHistoryBtn" class="btn btn-secondary">Refresh</button>
+                    </div>
+                </div>
+
+                <div class="filters" id="historyFilters">
+                    <label>
+                        From
+                        <input type="date" id="historyFrom">
+                    </label>
+                    <label>
+                        To
+                        <input type="date" id="historyTo">
+                    </label>
+                    <button type="button" id="applyHistoryFiltersBtn" class="btn btn-primary">Apply</button>
+                </div>
+
+                <p id="historyLoading" class="loading" hidden>Loading history…</p>
+                <p id="historyError" class="error" hidden></p>
+
+                <div class="table-wrap">
+                    <table class="orders-table" id="historyTable">
+                        <thead>
+                            <tr>
+                                <th>Reference</th>
+                                <th>Network</th>
+                                <th>Size</th>
+                                <th>Price (₵)</th>
+                                <th>Outcome</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyBody"></tbody>
+                    </table>
+                </div>
+
+                <div class="pagination" id="historyPagination">
+                    <span class="pagination-info" id="historyPaginationInfo"></span>
+                    <div class="pagination-btns">
+                        <button type="button" id="historyPrevBtn" class="btn btn-secondary" disabled>Previous</button>
+                        <button type="button" id="historyNextBtn" class="btn btn-secondary" disabled>Next</button>
+                    </div>
                 </div>
             </section>
         </main>

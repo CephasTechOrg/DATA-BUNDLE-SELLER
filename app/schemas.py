@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Literal
 
 
 class CreateOrder(BaseModel):
@@ -15,6 +15,10 @@ class OrderResponse(BaseModel):
     reference: str
 
     status: str
+
+
+class OrderStatusUpdate(BaseModel):
+    status: Literal["completed", "failed"]
 
 
 # ----- Bundles (admin CRUD) -----

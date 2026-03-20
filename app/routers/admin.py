@@ -12,7 +12,7 @@ from sqlalchemy import func
 
 from ..database import get_db
 from ..models import Order, Bundle
-from ..schemas import BundleCreate, BundleUpdate
+from ..schemas import BundleCreate, BundleUpdate, OrderStatusUpdate
 from ..auth import verify_admin, create_admin_token
 
 # Public routes (no auth)
@@ -74,7 +74,13 @@ def list_orders(
     """List orders with optional filters and pagination. Requires admin Basic auth."""
     q = db.query(Order).order_by(Order.created_at.desc())
     if status:
-        q = q.filter(Order.status == status)
+        # Allow comma-separated statuses for convenience, e.g. "completed,failed" (used by History UI).
+        status_values = [s.strip() for s in status.split(",") if s.strip()]
+        if status_values:
+            if len(status_values) == 1:
+                q = q.filter(Order.status == status_values[0])
+            else:
+                q = q.filter(Order.status.in_(status_values))
     if payment_status:
         q = q.filter(Order.payment_status == payment_status)
     if from_date:
@@ -253,3 +259,37 @@ def delete_bundle(bundle_id: int, db: Session = Depends(get_db)):
     db.delete(b)
     db.commit()
     return {"status": "deleted"}
+
+
+@router.patch("/orders/{reference}/status")
+def update_order_fulfillment_status(
+    reference: str,
+    body: OrderStatusUpdate,
+    db: Session = Depends(get_db),
+):
+    """
+    Manually fulfill an order.
+
+    Allowed only when the payment is confirmed via Paystack:
+    - payment_status must be "completed"
+    - order.status can be updated from "pending" to "completed"/"failed"
+    """
+    order = db.query(Order).filter(Order.reference == reference).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    if order.payment_status != "completed":
+        raise HTTPException(status_code=400, detail="Payment not completed for this order")
+
+    # Prevent accidental re-fulfillment with a different outcome.
+    if order.status in ("completed", "failed") and order.status != body.status:
+        raise HTTPException(status_code=400, detail="Order already fulfilled")
+
+    if order.status == body.status:
+        # Idempotent: return current state if admin repeats the same action.
+        return {"reference": order.reference, "status": order.status, "payment_status": order.payment_status}
+
+    order.status = body.status
+    db.commit()
+    db.refresh(order)
+    return {"reference": order.reference, "status": order.status, "payment_status": order.payment_status}

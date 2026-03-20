@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import Order, Bundle
 from ..schemas import CreateOrder
-from ..services.ghdataconnect_service import update_order_status
 from ..services.paystack_service import initialize_payment
 from ..utils.reference import generate_reference
 
@@ -21,7 +20,7 @@ def _get_bundle(db: Session, network: str, capacity: int):
         .filter(
             Bundle.network == network,
             Bundle.capacity_mb == capacity,
-            Bundle.is_active == True,
+            Bundle.is_active,
         )
         .first()
     )
@@ -32,7 +31,7 @@ def get_bundles(db: Session = Depends(get_db)):
     """Return active bundles from DB, grouped by network, with selling price."""
     rows = (
         db.query(Bundle)
-        .filter(Bundle.is_active == True)
+        .filter(Bundle.is_active)
         .order_by(Bundle.network, Bundle.display_order, Bundle.capacity_mb)
         .all()
     )
@@ -105,10 +104,8 @@ async def get_order_status(reference: str, refresh: bool = False, db: Session = 
     order = db.query(Order).filter(Order.reference == reference).first()
     if not order:
         return {"error": "Order not found"}
-    # Optional: poll GHDataConnect to update delivery status
-    if refresh:
-        await update_order_status(order)
-        db.commit()
+    # Manual fulfillment mode:
+    # We intentionally do NOT poll GH Data Connect. Admin fulfillment is the source of truth.
     return {
         "reference": order.reference,
         "status": order.status,
