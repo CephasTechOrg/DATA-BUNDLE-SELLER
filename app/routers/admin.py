@@ -8,7 +8,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from ..database import get_db
 from ..models import Order, Bundle
@@ -56,6 +56,7 @@ router = APIRouter(dependencies=[Depends(verify_admin)])
 
 
 def _mask_phone(phone: Optional[str]) -> str:
+    """Deprecated: kept for compatibility (we now display the full recipient phone)."""
     if not phone or len(phone) < 4:
         return "***"
     return phone[:2] + "****" + phone[-2:]
@@ -67,12 +68,15 @@ def list_orders(
     limit: int = Query(50, ge=1, le=200),
     status: Optional[str] = Query(None, description="Filter by order status"),
     payment_status: Optional[str] = Query(None, description="Filter by payment_status"),
+    sort: str = Query("desc", description="Sort by created_at: asc or desc"),
     from_date: Optional[str] = Query(None, description="YYYY-MM-DD"),
     to_date: Optional[str] = Query(None, description="YYYY-MM-DD"),
     db: Session = Depends(get_db),
 ):
     """List orders with optional filters and pagination. Requires admin Basic auth."""
-    q = db.query(Order).order_by(Order.created_at.desc())
+    sort = (sort or "desc").strip().lower()
+    created_order = Order.created_at.asc() if sort == "asc" else Order.created_at.desc()
+    q = db.query(Order).order_by(created_order)
     if status:
         # Allow comma-separated statuses for convenience, e.g. "completed,failed" (used by History UI).
         status_values = [s.strip() for s in status.split(",") if s.strip()]
@@ -102,12 +106,15 @@ def list_orders(
         {
             "id": o.id,
             "reference": o.reference,
-            "phone_number": _mask_phone(o.phone_number),
+            "phone_number": o.phone_number,
+            "payment_reference_phone": o.payment_reference_phone,
             "network": o.network,
             "capacity": o.capacity,
             "price": float(o.price) if o.price is not None else None,
             "status": o.status,
             "payment_status": o.payment_status,
+            "claimed_by": o.claimed_by,
+            "claimed_at": o.claimed_at.isoformat() if o.claimed_at else None,
             "created_at": o.created_at.isoformat() if o.created_at else None,
         }
         for o in rows
@@ -261,11 +268,72 @@ def delete_bundle(bundle_id: int, db: Session = Depends(get_db)):
     return {"status": "deleted"}
 
 
+@router.post("/orders/{reference}/claim")
+def claim_order(reference: str, db: Session = Depends(get_db), admin_id: str = Depends(verify_admin)):
+    """
+    Claim an order so only one admin fulfills it.
+
+    Visual effect in the admin UI:
+    - unclaimed: action buttons show "Claim"
+    - claimed by another admin: actions are disabled and show "Locked"
+    - claimed by me: actions become available
+    """
+    order = db.query(Order).filter(Order.reference == reference).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    if order.payment_status != "completed":
+        raise HTTPException(status_code=400, detail="Payment not completed for this order")
+    if order.status != "pending":
+        raise HTTPException(status_code=400, detail=f"Order is not pending (current status: {order.status})")
+
+    # Idempotency: already claimed by me.
+    if order.claimed_by == admin_id:
+        return {
+            "reference": order.reference,
+            "claimed_by": order.claimed_by,
+            "claimed_at": order.claimed_at.isoformat() if order.claimed_at else None,
+        }
+
+    if order.claimed_by and order.claimed_by != admin_id:
+        raise HTTPException(status_code=409, detail="Order already claimed by another admin")
+
+    # Atomic claim: only one admin can claim when claimed_by IS NULL.
+    now = datetime.now(timezone.utc)
+    updated = (
+        db.query(Order)
+        .filter(
+            Order.reference == reference,
+            Order.payment_status == "completed",
+            Order.status == "pending",
+            Order.claimed_by.is_(None),
+        )
+        .update({"claimed_by": admin_id, "claimed_at": now}, synchronize_session=False)
+    )
+
+    if updated != 1:
+        # Someone else claimed between our read and update.
+        order = db.query(Order).filter(Order.reference == reference).first()
+        if not order:
+            raise HTTPException(status_code=404, detail="Order not found")
+        if order.claimed_by != admin_id:
+            raise HTTPException(status_code=409, detail="Order already claimed by another admin")
+
+    db.commit()
+    db.refresh(order)
+    return {
+        "reference": order.reference,
+        "claimed_by": order.claimed_by,
+        "claimed_at": order.claimed_at.isoformat() if order.claimed_at else None,
+    }
+
+
 @router.patch("/orders/{reference}/status")
 def update_order_fulfillment_status(
     reference: str,
     body: OrderStatusUpdate,
     db: Session = Depends(get_db),
+    admin_id: str = Depends(verify_admin),
 ):
     """
     Manually fulfill an order.
@@ -281,15 +349,73 @@ def update_order_fulfillment_status(
     if order.payment_status != "completed":
         raise HTTPException(status_code=400, detail="Payment not completed for this order")
 
-    # Prevent accidental re-fulfillment with a different outcome.
-    if order.status in ("completed", "failed") and order.status != body.status:
-        raise HTTPException(status_code=400, detail="Order already fulfilled")
-
-    if order.status == body.status:
-        # Idempotent: return current state if admin repeats the same action.
+    if order.status == body.status and order.status in ("completed", "failed"):
+        # Idempotent: same final outcome.
         return {"reference": order.reference, "status": order.status, "payment_status": order.payment_status}
 
-    order.status = body.status
+    # Enforce locking via atomic update:
+    # - must still be pending
+    # - must still be claimed_by == this admin
+    updated = (
+        db.query(Order)
+        .filter(
+            Order.reference == reference,
+            Order.payment_status == "completed",
+            Order.status == "pending",
+            Order.claimed_by == admin_id,
+        )
+        .update({"status": body.status}, synchronize_session=False)
+    )
+
+    if updated != 1:
+        # Re-read to return the correct error.
+        order = db.query(Order).filter(Order.reference == reference).first()
+        if not order:
+            raise HTTPException(status_code=404, detail="Order not found")
+        if order.status != "pending":
+            raise HTTPException(status_code=400, detail=f"Order is not pending (current status: {order.status})")
+        if order.claimed_by != admin_id:
+            raise HTTPException(status_code=409, detail="Order is locked by another admin (or not claimed)")
+        raise HTTPException(status_code=400, detail="Order cannot be fulfilled in its current state")
+
     db.commit()
     db.refresh(order)
     return {"reference": order.reference, "status": order.status, "payment_status": order.payment_status}
+
+
+@router.delete("/orders/{reference}")
+def delete_order_for_admin(
+    reference: str,
+    db: Session = Depends(get_db),
+    admin_id: str = Depends(verify_admin),
+):
+    """
+    Delete an order from the queue.
+
+    Allowed only when:
+    - payment_status == completed
+    - status == pending
+    - and either unclaimed or claimed_by == this admin
+    """
+    # Atomic delete: allow if unclaimed OR claimed_by == this admin.
+    deleted = (
+        db.query(Order)
+        .filter(
+            Order.reference == reference,
+            Order.payment_status == "completed",
+            Order.status == "pending",
+            or_(Order.claimed_by.is_(None), Order.claimed_by == admin_id),
+        )
+        .delete(synchronize_session=False)
+    )
+
+    if deleted != 1:
+        order = db.query(Order).filter(Order.reference == reference).first()
+        if not order:
+            raise HTTPException(status_code=404, detail="Order not found")
+        if order.payment_status != "completed" or order.status != "pending":
+            raise HTTPException(status_code=400, detail="Only pending paid orders can be deleted")
+        raise HTTPException(status_code=409, detail="Order locked by another admin")
+
+    db.commit()
+    return {"status": "deleted", "reference": reference}

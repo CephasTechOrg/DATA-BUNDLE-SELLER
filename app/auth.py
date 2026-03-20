@@ -67,9 +67,15 @@ def verify_admin(
     credentials: HTTPBasicCredentials = Depends(HTTPBasic(auto_error=False)),
     bearer: HTTPAuthorizationCredentials = Depends(_security_bearer),
 ) -> str:
-    """Accept either Basic auth or Bearer token. Returns username on success."""
+    """
+    Accept either Basic auth or Bearer token.
+
+    Returns:
+    - bearer token string (so multi-admin locking can identify the caller)
+    - or username string for Basic auth
+    """
     if bearer and bearer.scheme.lower() == "bearer" and _verify_token(bearer.credentials):
-        return ADMIN_USERNAME or "admin"
+        return bearer.credentials
     if credentials and _check_credentials(credentials.username, credentials.password):
         return credentials.username
     raise HTTPException(

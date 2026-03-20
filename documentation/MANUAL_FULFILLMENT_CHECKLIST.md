@@ -72,11 +72,20 @@ Manual migration should not weaken webhook security.
 
 ## Phase 2 — Admin API: add endpoint to mark fulfillment outcome
 
+## (Required) Before enabling claim/lock in the UI
+1. Run the DB migration to add locking columns:
+   - `python scripts/add_order_claim_fields.py`
+2. Restart the backend so the updated `Order` model is used.
+
 ### 2.1 Add protected route for admin fulfillment actions
 File(s) to update: `app/routers/admin.py` (and auth is already present)
 
 Add a protected endpoint such as:
 - `PATCH /admin/orders/{reference}/status`
+
+Recommended additional endpoints:
+- `POST /admin/orders/{reference}/claim` (atomic claim for multi-admin safety)
+- `DELETE /admin/orders/{reference}` (delete pending paid orders from the queue)
 
 Request body (example):
 ```json
@@ -88,6 +97,7 @@ Backend rules checklist:
 - only allow transitions to `completed`/`failed` when:
   - `order.payment_status == "completed"`
   - current `order.status == "pending"` (optional but recommended to prevent re-fulfillment)
+- and the order must be claimed by the calling admin (prevents multiple admins from fulfilling the same paid order)
 - do not update `payment_status` in this endpoint
 - commit and return updated order fields needed by the UI (at least `reference`, `status`, `payment_status`, `created_at`)
 
@@ -101,11 +111,13 @@ Optional but recommended:
 File to update: `admin/app.js` (UI logic)
 
 UI checklist:
-- Keep existing filters/pagination/export working
-- Add per-row actions for orders that are ready to fulfill:
-  - show `Mark Completed` / `Mark Failed` when:
-    - `payment_status === "completed"`
-    - `status === "pending"`
+- Orders queue should show only:
+  - `payment_status === "completed"`
+  - `status === "pending"`
+- Add per-row actions with claim/lock UI:
+  - if `claimed_by` is empty: show `Claim` (and optionally `Delete`)
+  - if `claimed_by` belongs to the current admin token: show `Mark Completed` / `Mark Failed`
+  - if `claimed_by` belongs to another admin: show a visual `Locked` state and disable actions
 - When action is performed:
   - call backend fulfillment endpoint
   - refresh orders list

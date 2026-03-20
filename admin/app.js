@@ -153,15 +153,15 @@
         ordersError.hidden = true;
         const from = document.getElementById("filterFrom").value || undefined;
         const to = document.getElementById("filterTo").value || undefined;
-        const status = document.getElementById("filterStatus").value || undefined;
-        const payment = document.getElementById("filterPayment").value || undefined;
         const params = new URLSearchParams();
         params.set("skip", String(currentSkip));
         params.set("limit", String(PAGE_SIZE));
         if (from) params.set("from_date", from);
         if (to) params.set("to_date", to);
-        if (status) params.set("status", status);
-        if (payment) params.set("payment_status", payment);
+        // Manual fulfillment queue: paid but not yet fulfilled (oldest first).
+        params.set("payment_status", "completed");
+        params.set("status", "pending");
+        params.set("sort", "asc");
 
         const { ok, data, status: resStatus } = await api("/admin/orders?" + params.toString());
         ordersLoading.hidden = true;
@@ -174,11 +174,13 @@
 
         lastOrdersTotal = data.total ?? 0;
         const items = data.items ?? [];
+        const myToken = sessionStorage.getItem(TOKEN_KEY) || "";
         ordersBody.innerHTML = items
             .map(
                 (o) =>
                     `<tr>
         <td data-label="Reference"><code>${escapeHtml(o.reference || "—")}</code></td>
+        <td data-label="Recipient">${escapeHtml(o.phone_number || "—")}</td>
         <td data-label="Network">${escapeHtml(o.network || "—")}</td>
         <td data-label="Size">${formatCapacity(o.capacity)}</td>
         <td data-label="Price">${o.price != null ? "₵" + Number(o.price).toFixed(2) : "—"}</td>
@@ -187,10 +189,20 @@
         <td data-label="Date">${formatDate(o.created_at)}</td>
         <td data-label="Actions">${
                         (o.payment_status === "completed" && o.status === "pending")
-                            ? `<div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
-                                    <button type="button" class="btn btn-small btn-primary btn-mark-completed" data-reference="${escapeHtml(o.reference || "")}">Mark Completed</button>
-                                    <button type="button" class="btn btn-small btn-danger btn-mark-failed" data-reference="${escapeHtml(o.reference || "")}">Mark Failed</button>
-                               </div>`
+                            ? (o.claimed_by
+                                ? (o.claimed_by === myToken
+                                    ? `<div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                                           <button type="button" class="btn btn-small btn-primary btn-mark-completed" data-reference="${escapeHtml(o.reference || "")}">Mark Completed</button>
+                                           <button type="button" class="btn btn-small btn-danger btn-mark-failed" data-reference="${escapeHtml(o.reference || "")}">Mark Failed</button>
+                                           <button type="button" class="btn btn-small btn-secondary btn-delete-order" data-reference="${escapeHtml(o.reference || "")}">Delete</button>
+                                       </div>`
+                                    : `<div style="color:var(--text-muted);font-weight:600;">Locked</div>`
+                                )
+                                : `<div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                                       <button type="button" class="btn btn-small btn-primary btn-claim-order" data-reference="${escapeHtml(o.reference || "")}">Claim</button>
+                                       <button type="button" class="btn btn-small btn-secondary btn-delete-order" data-reference="${escapeHtml(o.reference || "")}">Delete</button>
+                                   </div>`
+                            )
                             : "<span style='color:var(--text-muted)'>—</span>"
                     }</td>
       </tr>`
@@ -198,11 +210,17 @@
             .join("");
 
         // Attach fulfillment actions for manual delivery.
+        ordersBody.querySelectorAll(".btn-claim-order").forEach((btn) => {
+            btn.addEventListener("click", () => claimOrder(btn.getAttribute("data-reference")));
+        });
         ordersBody.querySelectorAll(".btn-mark-completed").forEach((btn) => {
             btn.addEventListener("click", () => markOrderFulfillment(btn.getAttribute("data-reference"), "completed"));
         });
         ordersBody.querySelectorAll(".btn-mark-failed").forEach((btn) => {
             btn.addEventListener("click", () => markOrderFulfillment(btn.getAttribute("data-reference"), "failed"));
+        });
+        ordersBody.querySelectorAll(".btn-delete-order").forEach((btn) => {
+            btn.addEventListener("click", () => deleteOrder(btn.getAttribute("data-reference")));
         });
 
         const fromRow = currentSkip + 1;
@@ -219,6 +237,34 @@
         const div = document.createElement("div");
         div.textContent = s;
         return div.innerHTML;
+    }
+
+    async function claimOrder(reference) {
+        if (!reference) return;
+        const { ok, status: resStatus } = await api(
+            "/admin/orders/" + encodeURIComponent(reference) + "/claim",
+            { method: "POST" },
+        );
+        if (resStatus === 401) return;
+        if (!ok) return;
+        currentSkip = 0;
+        await loadStats();
+        await loadOrders();
+        await loadHistory();
+    }
+
+    async function deleteOrder(reference) {
+        if (!reference) return;
+        if (!confirm("Delete this pending order? It will be removed from the queue/history.")) return;
+        const { ok, status: resStatus } = await api(
+            "/admin/orders/" + encodeURIComponent(reference),
+            { method: "DELETE" },
+        );
+        if (resStatus === 401) return;
+        if (!ok) return;
+        await loadStats();
+        await loadOrders();
+        await loadHistory();
     }
 
     async function markOrderFulfillment(reference, nextStatus) {
@@ -252,6 +298,7 @@
         // History: only orders that are both paid and fulfilled (completed/failed).
         params.set("payment_status", "completed");
         params.set("status", "completed,failed");
+        params.set("sort", "desc");
 
         const { ok, data, status: resStatus } = await api("/admin/orders?" + params.toString());
         historyLoading.hidden = true;
@@ -269,6 +316,7 @@
                 (o) =>
                     `<tr>
                         <td data-label="Reference"><code>${escapeHtml(o.reference || "—")}</code></td>
+                        <td data-label="Recipient">${escapeHtml(o.phone_number || "—")}</td>
                         <td data-label="Network">${escapeHtml(o.network || "—")}</td>
                         <td data-label="Size">${formatCapacity(o.capacity)}</td>
                         <td data-label="Price">${o.price != null ? "₵" + Number(o.price).toFixed(2) : "—"}</td>
@@ -291,14 +339,14 @@
     function exportCsv() {
         const from = document.getElementById("filterFrom").value || undefined;
         const to = document.getElementById("filterTo").value || undefined;
-        const status = document.getElementById("filterStatus").value || undefined;
-        const payment = document.getElementById("filterPayment").value || undefined;
         const params = new URLSearchParams();
         params.set("limit", "5000");
         if (from) params.set("from_date", from);
         if (to) params.set("to_date", to);
-        if (status) params.set("status", status);
-        if (payment) params.set("payment_status", payment);
+        // Export current queue (paid but pending fulfillment).
+        params.set("payment_status", "completed");
+        params.set("status", "pending");
+        params.set("sort", "asc");
 
         api("/admin/orders?" + params.toString()).then(({ ok, data }) => {
             if (!ok || !data || !data.items) return;

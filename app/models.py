@@ -24,6 +24,11 @@ class Order(Base):
 
     payment_status = Column(String, default="pending")
 
+    # Manual fulfillment lock/ownership for multi-admin environments.
+    # When set, only the claiming admin can finalize the order.
+    claimed_by = Column(String, nullable=True)
+    claimed_at = Column(DateTime(timezone=True), nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
