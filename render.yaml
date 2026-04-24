@@ -6,7 +6,7 @@
 services:
   - type: web
     name: bundlereseller-backend
-    runtime: python
+    env: python
     region: oregon
     plan: free
     branch: main
