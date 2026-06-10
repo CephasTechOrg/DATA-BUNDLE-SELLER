@@ -1,4 +1,5 @@
 import logging
+import os
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -6,11 +7,50 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import Order, Bundle
 from ..schemas import CreateOrder
+from ..services import resellerxpress_service
 from ..services.paystack_service import initialize_payment
 from ..utils.reference import generate_reference
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+try:
+    LOW_BALANCE_THRESHOLD = float(os.getenv("RESELLERXPRESS_LOW_BALANCE_THRESHOLD", "50") or 50)
+except ValueError:
+    LOW_BALANCE_THRESHOLD = 50.0
+
+# Shown to the customer when the provider wallet can't cover the order. Kept vague
+# on purpose (no "wallet" talk) so it reads as a temporary service blip.
+UNAVAILABLE_MSG = (
+    "We're having a brief issue completing orders right now. Please try again in "
+    "about 30 minutes. You have not been charged."
+)
+
+
+async def _wallet_can_fulfill(cost_price: float) -> bool:
+    """
+    True if the ResellerXpress wallet can cover this order (>= the larger of the
+    low-balance threshold and the bundle's dealer cost).
+
+    Fails OPEN: if the balance can't be read (provider hiccup), we allow the order
+    through — the post-payment auto-placement + manual_review net still protects a
+    paid-but-undeliverable order. We only block when we *know* the wallet is short.
+    """
+    result = await resellerxpress_service.get_wallet_balance()
+    if not result.get("ok"):
+        logger.warning("Wallet pre-check unavailable, allowing order: %s", result.get("message"))
+        return True
+    data = result.get("data") or {}
+    try:
+        balance = float(data.get("balance"))
+    except (TypeError, ValueError):
+        logger.warning("Wallet pre-check: unparseable balance %r, allowing order", data.get("balance"))
+        return True
+    required = max(LOW_BALANCE_THRESHOLD, float(cost_price or 0))
+    if balance < required:
+        logger.warning("Order blocked: wallet balance %.2f below required %.2f", balance, required)
+        return False
+    return True
 
 
 def _get_bundle(db: Session, network: str, capacity: int):
@@ -56,6 +96,10 @@ async def create_order(order: CreateOrder, db: Session = Depends(get_db)):
             status_code=400,
             detail=f"Bundle not supported: {order.network} {order.capacity} MB. Choose a size from the bundle list.",
         )
+
+    # Pre-checkout guard: don't take payment if the provider wallet can't fulfill it.
+    if not await _wallet_can_fulfill(float(bundle.cost_price_ghs)):
+        raise HTTPException(status_code=503, detail=UNAVAILABLE_MSG)
 
     reference = generate_reference()
     selling_price = float(bundle.selling_price_ghs)

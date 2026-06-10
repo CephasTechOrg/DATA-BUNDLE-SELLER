@@ -47,10 +47,13 @@ function showToast(message, isError = true) {
     const toast = document.createElement("div");
     toast.className = "error-toast";
     toast.setAttribute("role", "alert");
-    toast.style.cssText = "position:fixed;top:20px;right:20px;background:#ef4444;color:#fff;padding:1rem 1.5rem;border-radius:12px;box-shadow:0 10px 25px rgba(239,68,68,0.3);z-index:10000;max-width:400px;";
-    toast.innerHTML = `<div style="display:flex;align-items:flex-start;gap:0.75rem;"><i class="fas fa-exclamation-circle" style="font-size:1.2rem;"></i><div>${escapeHtml(message)}</div></div>`;
+    const bg = isError ? "#ef4444" : "#0d9488";       // red for errors, teal for info
+    const shadow = isError ? "rgba(239,68,68,0.3)" : "rgba(13,148,136,0.3)";
+    const icon = isError ? "fa-exclamation-circle" : "fa-info-circle";
+    toast.style.cssText = `position:fixed;top:20px;right:20px;background:${bg};color:#fff;padding:1rem 1.5rem;border-radius:12px;box-shadow:0 10px 25px ${shadow};z-index:10000;max-width:400px;`;
+    toast.innerHTML = `<div style="display:flex;align-items:flex-start;gap:0.75rem;"><i class="fas ${icon}" style="font-size:1.2rem;"></i><div>${escapeHtml(message)}</div></div>`;
     document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 5000);
+    setTimeout(() => toast.remove(), isError ? 5000 : 8000);
 }
 
 function showLoadingScreen() {
@@ -229,7 +232,9 @@ async function handleOrderSubmit(e) {
         }
     } catch (err) {
         setModalVisible(processingModal, false);
-        showToast(err.message || "Something went wrong. Please try again.");
+        // 503 = service temporarily unavailable (e.g. provider wallet low) -> calm info, not an error.
+        const isInfo = err.status === 503;
+        showToast(err.message || "Something went wrong. Please try again.", !isInfo);
         setModalVisible(orderModal, true);
     } finally {
         orderSubmitBtn.disabled = false;
