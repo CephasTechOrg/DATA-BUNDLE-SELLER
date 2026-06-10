@@ -468,6 +468,21 @@ async def sync_provider_plans():
     return summary
 
 
+@router.post("/bundles/reprice")
+def reprice_bundles_endpoint():
+    """
+    Apply tiered selling margins (1-5GB +GH1.50, 6-20GB +10%, 25GB+ +7%) and
+    deactivate orphan bundles that have no ResellerXpress plan. Safe to re-run.
+    Requires admin auth.
+    """
+    from ..reprice import reprice_all
+
+    summary = reprice_all(deactivate_orphans=True)
+    if not summary.get("ok"):
+        raise HTTPException(status_code=500, detail=summary.get("message", "Reprice failed"))
+    return summary
+
+
 @router.get("/wallet")
 async def get_provider_wallet():
     """Return the current ResellerXpress wallet balance. Requires admin auth."""

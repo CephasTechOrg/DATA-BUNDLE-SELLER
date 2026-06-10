@@ -18,7 +18,6 @@ Run from project root:
 """
 import os
 import sys
-from decimal import Decimal, ROUND_CEILING
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -28,20 +27,7 @@ load_dotenv()
 
 from app.database import SessionLocal
 from app.models import Bundle
-
-
-def margin_price(capacity_mb: int, cost: float) -> float:
-    """Selling = cost + tiered margin, rounded UP to the nearest GH0.10.
-    Uses Decimal so float epsilon can't over-round (e.g. 360*1.07 -> 385.20, not 385.30)."""
-    c = Decimal(str(cost))
-    if capacity_mb <= 5000:
-        raw = c + Decimal("1.50")
-    elif capacity_mb <= 20000:
-        raw = c * Decimal("1.10")
-    else:
-        raw = c * Decimal("1.07")
-    # round up to nearest 0.10
-    return float(raw.quantize(Decimal("0.1"), rounding=ROUND_CEILING))
+from app.reprice import margin_price  # shared tiered-margin logic (single source of truth)
 
 
 def main():
