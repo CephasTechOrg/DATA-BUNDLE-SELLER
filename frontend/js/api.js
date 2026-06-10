@@ -5,7 +5,7 @@ function getBaseUrl() {
     const p = window.location.protocol;
     const h = window.location.hostname;
     if (p === "file:" || !h || h === "localhost" || h === "127.0.0.1") return "http://127.0.0.1:8000";
-    return "https://bundlereseller-backend.onrender.com";
+    return "https://bundlereseller-backend-cu9u.onrender.com";
 }
 const BASE_URL = getBaseUrl();
 

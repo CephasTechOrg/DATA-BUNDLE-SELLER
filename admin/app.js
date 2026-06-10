@@ -7,7 +7,7 @@
         window.location.hostname === "127.0.0.1";
     const API_BASE = typeof window !== "undefined" && window.ADMIN_API_BASE
         ? window.ADMIN_API_BASE.replace(/\/$/, "")
-        : isLocal ? "http://127.0.0.1:8000" : "https://bundlereseller-backend.onrender.com";
+        : isLocal ? "http://127.0.0.1:8000" : "https://bundlereseller-backend-cu9u.onrender.com";
 
     const PAGE_SIZE = 20;
     let currentSkip = 0;
