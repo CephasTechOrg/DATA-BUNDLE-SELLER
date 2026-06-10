@@ -113,6 +113,11 @@ def list_orders(
             "price": float(o.price) if o.price is not None else None,
             "status": o.status,
             "payment_status": o.payment_status,
+            "provider_order_id": o.provider_order_id,
+            "provider_status": o.provider_status,
+            "provider_amount": float(o.provider_amount) if o.provider_amount is not None else None,
+            "failure_reason": o.failure_reason,
+            "retry_count": o.retry_count,
             "claimed_by": o.claimed_by,
             "claimed_at": o.claimed_at.isoformat() if o.claimed_at else None,
             "created_at": o.created_at.isoformat() if o.created_at else None,
@@ -189,6 +194,7 @@ def list_bundles(
             "selling_price_ghs": float(b.selling_price_ghs),
             "is_active": b.is_active,
             "display_order": b.display_order,
+            "provider_plan_id": b.provider_plan_id,
         }
         for b in rows
     ]
@@ -227,6 +233,7 @@ def create_bundle(body: BundleCreate, db: Session = Depends(get_db)):
         "selling_price_ghs": float(b.selling_price_ghs),
         "is_active": b.is_active,
         "display_order": b.display_order,
+        "provider_plan_id": b.provider_plan_id,
     }
 
 
@@ -244,6 +251,8 @@ def update_bundle(bundle_id: int, body: BundleUpdate, db: Session = Depends(get_
         b.is_active = body.is_active
     if body.display_order is not None:
         b.display_order = body.display_order
+    if body.provider_plan_id is not None:
+        b.provider_plan_id = body.provider_plan_id
     db.commit()
     db.refresh(b)
     return {
@@ -254,6 +263,7 @@ def update_bundle(bundle_id: int, body: BundleUpdate, db: Session = Depends(get_
         "selling_price_ghs": float(b.selling_price_ghs),
         "is_active": b.is_active,
         "display_order": b.display_order,
+        "provider_plan_id": b.provider_plan_id,
     }
 
 
@@ -284,8 +294,8 @@ def claim_order(reference: str, db: Session = Depends(get_db), admin_id: str = D
 
     if order.payment_status != "completed":
         raise HTTPException(status_code=400, detail="Payment not completed for this order")
-    if order.status != "pending":
-        raise HTTPException(status_code=400, detail=f"Order is not pending (current status: {order.status})")
+    if order.status not in ("pending", "manual_review"):
+        raise HTTPException(status_code=400, detail=f"Order cannot be claimed (current status: {order.status})")
 
     # Idempotency: already claimed by me.
     if order.claimed_by == admin_id:
@@ -305,7 +315,7 @@ def claim_order(reference: str, db: Session = Depends(get_db), admin_id: str = D
         .filter(
             Order.reference == reference,
             Order.payment_status == "completed",
-            Order.status == "pending",
+            Order.status.in_(("pending", "manual_review")),
             Order.claimed_by.is_(None),
         )
         .update({"claimed_by": admin_id, "claimed_at": now}, synchronize_session=False)
@@ -354,14 +364,14 @@ def update_order_fulfillment_status(
         return {"reference": order.reference, "status": order.status, "payment_status": order.payment_status}
 
     # Enforce locking via atomic update:
-    # - must still be pending
+    # - must still be pending or manual_review
     # - must still be claimed_by == this admin
     updated = (
         db.query(Order)
         .filter(
             Order.reference == reference,
             Order.payment_status == "completed",
-            Order.status == "pending",
+            Order.status.in_(("pending", "manual_review")),
             Order.claimed_by == admin_id,
         )
         .update({"status": body.status}, synchronize_session=False)
@@ -372,8 +382,8 @@ def update_order_fulfillment_status(
         order = db.query(Order).filter(Order.reference == reference).first()
         if not order:
             raise HTTPException(status_code=404, detail="Order not found")
-        if order.status != "pending":
-            raise HTTPException(status_code=400, detail=f"Order is not pending (current status: {order.status})")
+        if order.status not in ("pending", "manual_review"):
+            raise HTTPException(status_code=400, detail=f"Order cannot be finalized (current status: {order.status})")
         if order.claimed_by != admin_id:
             raise HTTPException(status_code=409, detail="Order is locked by another admin (or not claimed)")
         raise HTTPException(status_code=400, detail="Order cannot be fulfilled in its current state")
@@ -403,7 +413,7 @@ def delete_order_for_admin(
         .filter(
             Order.reference == reference,
             Order.payment_status == "completed",
-            Order.status == "pending",
+            Order.status.in_(("pending", "manual_review")),
             or_(Order.claimed_by.is_(None), Order.claimed_by == admin_id),
         )
         .delete(synchronize_session=False)
@@ -413,9 +423,60 @@ def delete_order_for_admin(
         order = db.query(Order).filter(Order.reference == reference).first()
         if not order:
             raise HTTPException(status_code=404, detail="Order not found")
-        if order.payment_status != "completed" or order.status != "pending":
-            raise HTTPException(status_code=400, detail="Only pending paid orders can be deleted")
+        if order.payment_status != "completed" or order.status not in ("pending", "manual_review"):
+            raise HTTPException(status_code=400, detail="Only pending/manual-review paid orders can be deleted")
         raise HTTPException(status_code=409, detail="Order locked by another admin")
 
     db.commit()
     return {"status": "deleted", "reference": reference}
+
+
+# ----- ResellerXpress provider tools -----
+
+
+@router.post("/orders/{reference}/retry")
+async def retry_provider_order(reference: str):
+    """
+    Retry a failed / manual_review order with ResellerXpress (reprocess if we have
+    a provider order id, else place fresh). Enforces RESELLERXPRESS_MAX_RETRIES.
+    Requires admin auth.
+    """
+    from ..fulfillment import retry_order
+
+    summary = await retry_order(reference)
+    status = summary.get("status")
+    if status == "not_found":
+        raise HTTPException(status_code=404, detail="Order not found")
+    if status == "max_retries_reached":
+        raise HTTPException(status_code=409, detail=f"Max retries reached ({summary.get('retry_count')})")
+    if status == "error":
+        raise HTTPException(status_code=502, detail=summary.get("message", "Retry failed"))
+    return summary
+
+
+@router.post("/plans/sync")
+async def sync_provider_plans():
+    """
+    Pull plans from ResellerXpress and reconcile the bundles table
+    (sets provider_plan_id + dealer cost). Requires admin auth.
+    """
+    from ..plans_sync import sync_plans
+
+    summary = await sync_plans()
+    if not summary.get("ok"):
+        raise HTTPException(status_code=502, detail=summary.get("message", "Plans sync failed"))
+    return summary
+
+
+@router.get("/wallet")
+async def get_provider_wallet():
+    """Return the current ResellerXpress wallet balance. Requires admin auth."""
+    from ..services import resellerxpress_service
+
+    result = await resellerxpress_service.get_wallet_balance()
+    if not result.get("ok"):
+        raise HTTPException(
+            status_code=502,
+            detail=result.get("message", f"Wallet request failed (HTTP {result.get('status_code')})"),
+        )
+    return result.get("data")

@@ -400,34 +400,63 @@
     }
 
     // ----- Bundles -----
-    async function loadBundles() {
-        bundlesLoading.hidden = false;
-        bundlesError.hidden = true;
-        const { ok, data, status: resStatus } = await api("/admin/bundles?include_inactive=true");
-        bundlesLoading.hidden = true;
-        if (resStatus === 401) return;
-        if (!ok || !data) {
-            bundlesError.textContent = "Failed to load bundles.";
-            bundlesError.hidden = false;
-            return;
-        }
-        const items = data.items || [];
-        bundlesBody.innerHTML = items
-            .map(
-                (b) =>
-                    `<tr>
-                        <td data-label="Network">${escapeHtml(b.network)}</td>
-                        <td data-label="Size">${formatCapacity(b.capacity_mb)}</td>
-                        <td data-label="Cost">₵${Number(b.cost_price_ghs).toFixed(2)}</td>
-                        <td data-label="Selling">₵${Number(b.selling_price_ghs).toFixed(2)}</td>
-                        <td data-label="Active">${b.is_active ? "Yes" : "No"}</td>
-                        <td data-label="Actions">
-                            <button type="button" class="btn btn-small btn-edit" data-id="${b.id}" data-network="${escapeHtml(b.network)}" data-capacity="${b.capacity_mb}" data-cost="${b.cost_price_ghs}" data-selling="${b.selling_price_ghs}" data-active="${b.is_active}">Edit</button>
-                            <button type="button" class="btn btn-small btn-danger" data-id="${b.id}">Delete</button>
-                        </td>
-                    </tr>`
-            )
+    let allBundles = [];
+    let selectedBundleNetwork = "MTN";
+
+    function bundleRow(b) {
+        const margin = Number(b.selling_price_ghs) - Number(b.cost_price_ghs);
+        const marginColor = margin <= 0 ? "#ef4444" : (margin < 0.5 ? "#d97706" : "#16a34a");
+        const hasPlan = b.provider_plan_id != null;
+        const planCell = hasPlan
+            ? String(b.provider_plan_id)
+            : `<span style="color:#ef4444;font-weight:600;" title="No ResellerXpress plan — cannot auto-fulfill">—</span>`;
+        const rowClass = b.is_active ? "" : ' class="bundle-row-inactive"';
+        return `<tr${rowClass}>
+            <td data-label="Network">${escapeHtml(b.network)}</td>
+            <td data-label="Size">${formatCapacity(b.capacity_mb)}</td>
+            <td data-label="Cost">₵${Number(b.cost_price_ghs).toFixed(2)}</td>
+            <td data-label="Selling">₵${Number(b.selling_price_ghs).toFixed(2)}</td>
+            <td data-label="Margin" style="color:${marginColor};font-weight:600;">₵${margin.toFixed(2)}</td>
+            <td data-label="Plan">${planCell}</td>
+            <td data-label="Active">${b.is_active ? "Yes" : "No"}</td>
+            <td data-label="Actions">
+                <button type="button" class="btn btn-small btn-edit" data-id="${b.id}" data-network="${escapeHtml(b.network)}" data-capacity="${b.capacity_mb}" data-cost="${b.cost_price_ghs}" data-selling="${b.selling_price_ghs}" data-active="${b.is_active}">Edit</button>
+                <button type="button" class="btn btn-small btn-danger" data-id="${b.id}">Delete</button>
+            </td>
+        </tr>`;
+    }
+
+    function renderBundleTabs() {
+        const tabsEl = document.getElementById("bundleTabs");
+        if (!tabsEl) return;
+        const order = ["MTN", "AirtelTigo", "Telecel"];
+        const nets = [...new Set(allBundles.map((b) => b.network))]
+            .sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99));
+        const tabs = ["All", ...nets];
+        if (!tabs.includes(selectedBundleNetwork)) selectedBundleNetwork = tabs.includes("MTN") ? "MTN" : tabs[0];
+        tabsEl.innerHTML = tabs
+            .map((t) => {
+                const count = t === "All" ? allBundles.length : allBundles.filter((b) => b.network === t).length;
+                const active = t === selectedBundleNetwork ? " active" : "";
+                return `<button type="button" class="bundle-tab${active}" data-net="${escapeHtml(t)}">${escapeHtml(t)} <span class="bundle-tab-count">${count}</span></button>`;
+            })
             .join("");
+        tabsEl.querySelectorAll(".bundle-tab").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                selectedBundleNetwork = btn.getAttribute("data-net");
+                renderBundleTabs();
+                renderBundleRows();
+            });
+        });
+    }
+
+    function renderBundleRows() {
+        const items = selectedBundleNetwork === "All"
+            ? allBundles
+            : allBundles.filter((b) => b.network === selectedBundleNetwork);
+        bundlesBody.innerHTML = items.length
+            ? items.map(bundleRow).join("")
+            : `<tr><td colspan="8" style="text-align:center;padding:1.5rem;color:#94a3b8;">No bundles for ${escapeHtml(selectedBundleNetwork)}.</td></tr>`;
 
         bundlesBody.querySelectorAll(".btn-edit").forEach((btn) => {
             btn.addEventListener("click", () => {
@@ -444,6 +473,22 @@
         bundlesBody.querySelectorAll(".btn-danger").forEach((btn) => {
             btn.addEventListener("click", () => deleteBundle(Number(btn.getAttribute("data-id"))));
         });
+    }
+
+    async function loadBundles() {
+        bundlesLoading.hidden = false;
+        bundlesError.hidden = true;
+        const { ok, data, status: resStatus } = await api("/admin/bundles?include_inactive=true");
+        bundlesLoading.hidden = true;
+        if (resStatus === 401) return;
+        if (!ok || !data) {
+            bundlesError.textContent = "Failed to load bundles.";
+            bundlesError.hidden = false;
+            return;
+        }
+        allBundles = data.items || [];
+        renderBundleTabs();
+        renderBundleRows();
     }
 
     function openBundleModal(bundle) {

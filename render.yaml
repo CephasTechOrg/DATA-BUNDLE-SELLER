@@ -32,9 +32,15 @@ services:
       # Set these in Render Dashboard (Settings → Environment) or mark sync: false to be prompted
       - key: PAYSTACK_SECRET_KEY
         sync: false
-      - key: GHDATA_BASE_URL
+      - key: RESELLERXPRESS_BASE_URL
         sync: false
-      - key: GHDATA_API_KEY
+      - key: RESELLERXPRESS_API_KEY
+        sync: false
+      - key: RESELLERXPRESS_LOW_BALANCE_THRESHOLD
+        sync: false
+      - key: RESELLERXPRESS_WEBHOOK_SECRET
+        sync: false
+      - key: RESELLERXPRESS_MAX_RETRIES
         sync: false
       - key: ADMIN_USERNAME
         sync: false

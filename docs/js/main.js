@@ -112,7 +112,11 @@ function renderBundlesForNetwork(networkKey) {
             </div>`;
         return;
     }
-    const cardClass = networkKey === "Telecel" ? "bundle-card bundle-card--telecel" : "bundle-card bundle-card--mtn";
+    const variant =
+        networkKey === "Telecel" ? "bundle-card--telecel"
+        : networkKey === "AirtelTigo" ? "bundle-card--airteltigo"
+        : "bundle-card--mtn";
+    const cardClass = `bundle-card ${variant}`;
     bundlesGrid.innerHTML = bundles
         .map((b) => {
             const price = Number(b.price);
@@ -233,24 +237,75 @@ async function handleOrderSubmit(e) {
     }
 }
 
+// Map raw order state to a friendly label + style. Delivery is async, so a paid
+// order that is not yet final shows the delivery ETA.
+function describeStatus(data) {
+    const s = (data.status || "").toLowerCase();
+    const pay = (data.payment_status || "").toLowerCase();
+    if (s === "completed") return { label: "Delivered", cls: "ok", icon: "fa-circle-check", note: "Your bundle has been delivered. Enjoy! 🎉" };
+    if (s === "failed") return { label: "Failed", cls: "err", icon: "fa-circle-xmark", note: "Something went wrong with this order. Please contact support with your reference." };
+    if (s === "manual_review") return { label: "Being processed", cls: "wait", icon: "fa-clock", note: "Your order is being processed and will be delivered shortly." };
+    if (s === "processing") return { label: "Delivering now", cls: "wait", icon: "fa-bolt", note: "Usually delivered within 30 minutes (up to 1 hour during busy periods)." };
+    if (pay === "completed") return { label: "Payment received", cls: "wait", icon: "fa-clock", note: "Usually delivered within 30 minutes (up to 1 hour during busy periods)." };
+    return { label: "Awaiting payment", cls: "wait", icon: "fa-hourglass-half", note: "We haven't confirmed payment for this order yet." };
+}
+
+function renderOrderStatus(data) {
+    if (data.error) return `<p class="error-inline">${escapeHtml(data.error)}</p>`;
+    const d = describeStatus(data);
+    const ref = data.reference || "";
+    const refBlock = ref
+        ? `<div class="status-ref">
+                <span>Your reference — save it to track your order</span>
+                <div class="ref-row">
+                    <code>${escapeHtml(ref)}</code>
+                    <button type="button" class="copy-ref-btn" data-ref="${escapeHtml(ref)}"><i class="fas fa-copy"></i> Copy</button>
+                </div>
+           </div>`
+        : "";
+    return `
+        <div class="status-badge status-${d.cls}"><i class="fas ${d.icon}"></i> ${d.label}</div>
+        <p class="status-note">${escapeHtml(d.note)}</p>
+        ${refBlock}
+        <div class="status-meta">
+            <div><span>Payment</span><strong>${escapeHtml(data.payment_status || "—")}</strong></div>
+        </div>`;
+}
+
 function showStatusFromReference(reference) {
     setModalVisible(statusModal, true);
-    if (statusContent) statusContent.innerHTML = "<p>Checking order…</p>";
+    const titleEl = document.getElementById("statusModalTitle");
+    if (titleEl) titleEl.textContent = "Payment Successful";
+    if (statusContent) statusContent.innerHTML = "<p>Confirming your order…</p>";
     getOrderStatus(reference, true)
         .then((data) => {
             if (!statusContent) return;
-            if (data.error) {
-                statusContent.innerHTML = `<p class="error-inline">${escapeHtml(data.error)}</p>`;
-                return;
-            }
-            statusContent.innerHTML = `
-                <p><strong>Reference:</strong> ${escapeHtml(data.reference)}</p>
-                <p><strong>Status:</strong> ${escapeHtml(data.status)}</p>
-                <p><strong>Payment:</strong> ${escapeHtml(data.payment_status || "—")}</p>`;
+            statusContent.innerHTML = renderOrderStatus(data);
         })
         .catch((err) => {
             if (statusContent) statusContent.innerHTML = `<p class="error-inline">${escapeHtml(err.message || "Could not load status.")}</p>`;
         });
+}
+
+async function handleTrackSubmit(e) {
+    e.preventDefault();
+    const input = document.getElementById("trackRef");
+    const out = document.getElementById("trackResult");
+    const ref = (input?.value ?? "").trim();
+    if (!out) return;
+    if (!ref) {
+        out.hidden = false;
+        out.innerHTML = `<p class="error-inline">Please enter your order reference.</p>`;
+        return;
+    }
+    out.hidden = false;
+    out.innerHTML = "<p>Checking…</p>";
+    try {
+        const data = await getOrderStatus(ref, true);
+        out.innerHTML = renderOrderStatus(data);
+    } catch (err) {
+        out.innerHTML = `<p class="error-inline">${escapeHtml(err.message || "Could not load status.")}</p>`;
+    }
 }
 
 function closeStatusModal() {
@@ -324,6 +379,24 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("recipientPhone").addEventListener("input", copyRecipientToPayer);
 
     orderForm.addEventListener("submit", handleOrderSubmit);
+    const trackForm = document.getElementById("trackForm");
+    if (trackForm) trackForm.addEventListener("submit", handleTrackSubmit);
+
+    // Copy-to-clipboard for the order reference (delegated; works in modal + tracker).
+    document.addEventListener("click", (e) => {
+        const btn = e.target.closest(".copy-ref-btn");
+        if (!btn) return;
+        const ref = btn.getAttribute("data-ref") || "";
+        const done = () => { btn.innerHTML = '<i class="fas fa-check"></i> Copied!'; setTimeout(() => { btn.innerHTML = '<i class="fas fa-copy"></i> Copy'; }, 1500); };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(ref).then(done).catch(() => {});
+        } else {
+            const ta = document.createElement("textarea");
+            ta.value = ref; document.body.appendChild(ta); ta.select();
+            try { document.execCommand("copy"); done(); } catch (_) {}
+            document.body.removeChild(ta);
+        }
+    });
     orderModalClose.addEventListener("click", closeOrderModal);
     orderModalBackdrop.addEventListener("click", closeOrderModal);
     statusModalClose.addEventListener("click", closeStatusModal);

@@ -32,7 +32,10 @@ def get_bundles(db: Session = Depends(get_db)):
     rows = (
         db.query(Bundle)
         .filter(Bundle.is_active)
-        .order_by(Bundle.network, Bundle.display_order, Bundle.capacity_mb)
+        # Sort strictly by size within each network so order is always predictable
+        # (1GB -> 100GB). display_order is intentionally ignored to avoid re-added
+        # bundles jumping to the front.
+        .order_by(Bundle.network, Bundle.capacity_mb)
         .all()
     )
     by_network = {}
@@ -104,10 +107,26 @@ async def get_order_status(reference: str, refresh: bool = False, db: Session = 
     order = db.query(Order).filter(Order.reference == reference).first()
     if not order:
         return {"error": "Order not found"}
-    # Manual fulfillment mode:
-    # We intentionally do NOT poll GH Data Connect. Admin fulfillment is the source of truth.
+
+    # Polling fallback: when asked to refresh a non-final order that has been placed,
+    # pull the latest status from ResellerXpress and persist it. Webhooks are primary;
+    # this covers missed/late webhook deliveries.
+    if refresh and order.provider_order_id and order.status not in ("completed", "failed"):
+        from ..services import resellerxpress_service
+        from ..fulfillment import map_provider_status, _extract_provider_order
+
+        lookup = await resellerxpress_service.get_order_status(reference)
+        if lookup.get("ok"):
+            _, prov_status, amount = _extract_provider_order(lookup.get("data"))
+            if prov_status:
+                order.provider_status = prov_status
+                order.status = map_provider_status(prov_status)
+            if amount is not None and order.provider_amount is None:
+                order.provider_amount = amount
+            db.commit()
+
     return {
         "reference": order.reference,
         "status": order.status,
-        "payment_status": order.payment_status
+        "payment_status": order.payment_status,
     }

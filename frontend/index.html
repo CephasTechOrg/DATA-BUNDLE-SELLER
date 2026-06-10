@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#0d9488">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <title>Bundle Reseller – MTN & Telecel Data</title>
+    <title>ExtraData – MTN, AirtelTigo & Telecel Data</title>
     <link rel="stylesheet" href="style/style.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -22,7 +22,7 @@
                 <div class="progress-bar"><div class="progress-fill"></div></div>
             </div>
             <div class="loading-text">
-                <h3>Bundle Reseller</h3>
+                <h3>ExtraData</h3>
                 <p id="loadingScreenMessage">Preparing your data experience...</p>
             </div>
         </div>
@@ -33,11 +33,11 @@
         <div class="container">
             <nav class="nav">
                 <div class="logo">
-                    <div class="logo-icon"><i class="fas fa-bolt"></i></div>
-                    <h2>Bundle Reseller</h2>
+                    <h2>ExtraData</h2>
                 </div>
                 <div class="nav-links">
                     <a href="#bundles" class="nav-link">Bundles</a>
+                    <a href="#track" class="nav-link">Track Order</a>
                     <a href="#how-it-works" class="nav-link">How It Works</a>
                     <a href="#contact" class="nav-link">Contact</a>
                 </div>
@@ -53,7 +53,7 @@
             <div class="hero-content">
                 <h1 class="hero-title">
                     Super-Fast
-                    <span class="gradient-text">MTN & Telecel Data</span>
+                    <span class="gradient-text">MTN, AirtelTigo & Telecel Data</span>
                 </h1>
                 <p class="hero-description">
                     Pick your network, choose a bundle, pay securely. Data delivered straight to your phone.
@@ -97,10 +97,11 @@
             <div class="section-header">
                 <div class="section-badge">Data Plans</div>
                 <h2 class="section-title">Choose Your Data Bundle</h2>
-                <p class="section-subtitle">Select MTN or Telecel, then pick a bundle. Pay with Paystack.</p>
+                <p class="section-subtitle">Select MTN, AirtelTigo or Telecel, then pick a bundle. Pay with Paystack.</p>
             </div>
             <div class="network-tabs" role="tablist" aria-label="Network">
                 <button type="button" class="network-tab active" data-network="MTN" role="tab" aria-selected="true">MTN</button>
+                <button type="button" class="network-tab" data-network="AirtelTigo" role="tab" aria-selected="false">AirtelTigo</button>
                 <button type="button" class="network-tab" data-network="Telecel" role="tab" aria-selected="false">Telecel</button>
             </div>
             <p id="bundleLoading" class="loading-inline" aria-live="polite">Loading bundles…</p>
@@ -141,7 +142,7 @@
                     <div class="step-number">01</div>
                     <div class="step-icon"><i class="fas fa-mobile-alt"></i></div>
                     <h3>Choose Bundle</h3>
-                    <p>Select MTN or Telecel, then pick your data size. Prices shown include instant delivery.</p>
+                    <p>Select MTN, AirtelTigo or Telecel, then pick your data size. Prices shown include delivery.</p>
                 </div>
                 <div class="step-connector"></div>
                 <div class="step">
@@ -155,9 +156,25 @@
                     <div class="step-number">03</div>
                     <div class="step-icon"><i class="fas fa-bolt"></i></div>
                     <h3>Get Data</h3>
-                    <p>Data is delivered to the number you provided, usually within minutes.</p>
+                    <p>Data is delivered to the number you provided, usually within 30 minutes.</p>
                 </div>
             </div>
+        </div>
+    </section>
+
+    <!-- Track Order section -->
+    <section id="track" class="track-section">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-badge">Track</div>
+                <h2 class="section-title">Track Your Order</h2>
+                <p class="section-subtitle">Enter your order reference to see the delivery status.</p>
+            </div>
+            <form id="trackForm" class="track-form" autocomplete="off">
+                <input type="text" id="trackRef" placeholder="Paste your order reference" aria-label="Order reference">
+                <button type="submit" class="cta-button primary"><span>Track</span><i class="fas fa-search"></i></button>
+            </form>
+            <div id="trackResult" class="track-result" aria-live="polite" hidden></div>
         </div>
     </section>
 
@@ -236,10 +253,9 @@
             <div class="footer-content">
                 <div class="footer-brand">
                     <div class="logo">
-                        <div class="logo-icon"><i class="fas fa-bolt"></i></div>
-                        <h2>Bundle Reseller</h2>
+                        <h2>ExtraData</h2>
                     </div>
-                    <p>MTN and Telecel data bundles delivered to your phone. Pay with Paystack.</p>
+                    <p>MTN, AirtelTigo and Telecel data bundles delivered to your phone. Pay with Paystack.</p>
                     <div class="social-links">
                         <a href="#" class="social-link" aria-label="WhatsApp"><i class="fab fa-whatsapp"></i></a>
                         <a href="#" class="social-link" aria-label="Telegram"><i class="fab fa-telegram"></i></a>
@@ -258,7 +274,7 @@
                 </div>
             </div>
             <div class="footer-bottom">
-                <p>&copy; <span id="footerYear"></span> Bundle Reseller. All rights reserved.</p>
+                <p>&copy; <span id="footerYear"></span> ExtraData. All rights reserved.</p>
             </div>
         </div>
     </footer>

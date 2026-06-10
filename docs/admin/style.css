@@ -872,3 +872,60 @@ body {
         transition-duration: 0.01ms !important;
     }
 }
+
+/* Bundle table: network group headers + inactive rows */
+#bundlesTable tr.bundle-group td {
+    background: #0f172a;
+    color: #f8fafc;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    padding-top: 0.6rem;
+    padding-bottom: 0.6rem;
+}
+#bundlesTable tr.bundle-group .bundle-group-count {
+    font-weight: 500;
+    text-transform: none;
+    opacity: 0.7;
+    margin-left: 0.5rem;
+    font-size: 0.8rem;
+}
+#bundlesTable tr.bundle-row-inactive {
+    opacity: 0.5;
+}
+
+/* Bundle network tabs (admin Bundles page) */
+.bundle-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+.bundle-tab {
+    border: 1px solid var(--border, #e5e7eb);
+    background: #fff;
+    color: #334155;
+    padding: 0.5rem 1rem;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.bundle-tab:hover {
+    border-color: #0d9488;
+}
+.bundle-tab.active {
+    background: #0f172a;
+    color: #fff;
+    border-color: #0f172a;
+}
+.bundle-tab .bundle-tab-count {
+    opacity: 0.6;
+    font-weight: 500;
+    margin-left: 0.25rem;
+}
+.bundle-tab.active .bundle-tab-count {
+    opacity: 0.8;
+}

@@ -38,6 +38,7 @@ class BundleUpdate(BaseModel):
     selling_price_ghs: Optional[float] = None
     is_active: Optional[bool] = None
     display_order: Optional[int] = None
+    provider_plan_id: Optional[int] = None
 
 
 class BundleResponse(BaseModel):
