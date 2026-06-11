@@ -65,12 +65,11 @@ export async function getBundles(onRetry) {
     return handleResponse(res);
 }
 
-export async function createOrder(network, capacity, bundlePhone, email, paymentRefPhone = null, onRetry) {
+export async function createOrder(network, capacity, bundlePhone, paymentRefPhone = null, onRetry) {
     const body = {
         network,
         capacity,
         phone_number: bundlePhone,
-        email,
     };
     if (paymentRefPhone != null && String(paymentRefPhone).trim() !== "") {
         body.payment_reference_phone = paymentRefPhone.trim();

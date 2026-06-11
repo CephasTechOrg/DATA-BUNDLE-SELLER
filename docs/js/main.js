@@ -190,9 +190,8 @@ async function handleOrderSubmit(e) {
     if (!bundle) return;
     const recipientPhone = (document.getElementById("recipientPhone")?.value ?? "").trim();
     const payerPhone = (document.getElementById("payerPhone")?.value ?? "").trim();
-    const email = (document.getElementById("customerEmail")?.value ?? "").trim();
-    if (!recipientPhone || !email) {
-        if (orderFormError) { orderFormError.textContent = "Please enter phone to receive bundle and email."; orderFormError.hidden = false; }
+    if (!recipientPhone) {
+        if (orderFormError) { orderFormError.textContent = "Please enter the phone number to receive the bundle."; orderFormError.hidden = false; }
         return;
     }
     const sameAsRecipient = document.getElementById("sameAsRecipient");
@@ -207,7 +206,6 @@ async function handleOrderSubmit(e) {
             bundle.network,
             bundle.capacity,
             recipientPhone,
-            email,
             paymentRefPhone
         );
         setModalVisible(processingModal, false);

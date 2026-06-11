@@ -6,7 +6,9 @@ class CreateOrder(BaseModel):
     phone_number: str
     network: str
     capacity: int
-    email: str
+    # Optional: Paystack requires an email, but customers no longer enter one.
+    # If omitted, the backend synthesizes a placeholder from the phone number.
+    email: Optional[str] = None
     payment_reference_phone: Optional[str] = None
 
 

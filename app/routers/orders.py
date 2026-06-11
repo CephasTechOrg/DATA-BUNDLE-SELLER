@@ -117,9 +117,16 @@ async def create_order(order: CreateOrder, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_order)
 
+    # Paystack requires an email. Customers no longer enter one, so use theirs if
+    # provided, else synthesize a valid placeholder from the recipient phone.
+    email = (order.email or "").strip()
+    if not email:
+        digits = "".join(ch for ch in (order.phone_number or "") if ch.isdigit()) or "customer"
+        email = f"{digits}@noreply.xtradata.innovatex.ink"
+
     # Initialize Paystack payment (amount = selling price). Callback URL from env when set.
     payment = await initialize_payment(
-        email=order.email,
+        email=email,
         amount=selling_price,
         reference=reference,
     )
