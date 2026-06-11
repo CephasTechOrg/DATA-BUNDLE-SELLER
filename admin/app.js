@@ -190,6 +190,32 @@
         }
     }
 
+    function orderActions(o, myToken) {
+        const ref = escapeHtml(o.reference || "");
+        if (o.payment_status !== "completed") return "<span style='color:var(--text-muted)'>—</span>";
+        const st = o.status;
+        if (st === "processing") return "<span style='color:#0d9488;font-weight:600;'>Auto-delivering…</span>";
+        if (st === "completed" || st === "failed") return "<span style='color:var(--text-muted)'>—</span>";
+        // pending or manual_review -> actionable
+        const retryBtn = st === "manual_review"
+            ? `<button type="button" class="btn btn-small btn-primary btn-retry-order" data-reference="${ref}">Retry</button>`
+            : "";
+        if (o.claimed_by) {
+            if (o.claimed_by === myToken) {
+                return `<div style="display:flex;gap:0.5rem;flex-wrap:wrap;">${retryBtn}
+                    <button type="button" class="btn btn-small btn-primary btn-mark-completed" data-reference="${ref}">Mark Completed</button>
+                    <button type="button" class="btn btn-small btn-danger btn-mark-failed" data-reference="${ref}">Mark Failed</button>
+                    <button type="button" class="btn btn-small btn-secondary btn-delete-order" data-reference="${ref}">Delete</button>
+                </div>`;
+            }
+            return `<div style="color:var(--text-muted);font-weight:600;">Locked</div>`;
+        }
+        return `<div style="display:flex;gap:0.5rem;flex-wrap:wrap;">${retryBtn}
+            <button type="button" class="btn btn-small btn-primary btn-claim-order" data-reference="${ref}">Claim</button>
+            <button type="button" class="btn btn-small btn-secondary btn-delete-order" data-reference="${ref}">Delete</button>
+        </div>`;
+    }
+
     async function loadOrders() {
         ordersLoading.hidden = false;
         ordersError.hidden = true;
@@ -200,10 +226,11 @@
         params.set("limit", String(PAGE_SIZE));
         if (from) params.set("from_date", from);
         if (to) params.set("to_date", to);
-        // Manual fulfillment queue: paid but not yet fulfilled (oldest first).
+        // Active orders: paid and still in flight (auto-processing, awaiting review,
+        // or the rare manual pending). Final outcomes live in the History tab.
         params.set("payment_status", "completed");
-        params.set("status", "pending");
-        params.set("sort", "asc");
+        params.set("status", "pending,processing,manual_review");
+        params.set("sort", "desc");
 
         const { ok, data, status: resStatus } = await api("/admin/orders?" + params.toString());
         ordersLoading.hidden = true;
@@ -229,27 +256,13 @@
         <td data-label="Status"><span class="badge ${badgeClass(o.status)}">${escapeHtml(o.status || "—")}</span></td>
         <td data-label="Payment"><span class="badge ${badgeClass(o.payment_status)}">${escapeHtml(o.payment_status || "—")}</span></td>
         <td data-label="Date">${formatDate(o.created_at)}</td>
-        <td data-label="Actions">${
-                        (o.payment_status === "completed" && o.status === "pending")
-                            ? (o.claimed_by
-                                ? (o.claimed_by === myToken
-                                    ? `<div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
-                                           <button type="button" class="btn btn-small btn-primary btn-mark-completed" data-reference="${escapeHtml(o.reference || "")}">Mark Completed</button>
-                                           <button type="button" class="btn btn-small btn-danger btn-mark-failed" data-reference="${escapeHtml(o.reference || "")}">Mark Failed</button>
-                                           <button type="button" class="btn btn-small btn-secondary btn-delete-order" data-reference="${escapeHtml(o.reference || "")}">Delete</button>
-                                       </div>`
-                                    : `<div style="color:var(--text-muted);font-weight:600;">Locked</div>`
-                                )
-                                : `<div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
-                                       <button type="button" class="btn btn-small btn-primary btn-claim-order" data-reference="${escapeHtml(o.reference || "")}">Claim</button>
-                                       <button type="button" class="btn btn-small btn-secondary btn-delete-order" data-reference="${escapeHtml(o.reference || "")}">Delete</button>
-                                   </div>`
-                            )
-                            : "<span style='color:var(--text-muted)'>—</span>"
-                    }</td>
+        <td data-label="Actions">${orderActions(o, myToken)}</td>
       </tr>`
             )
             .join("");
+        if (!items.length) {
+            ordersBody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:1.75rem;color:#94a3b8;">No active orders right now. Completed and failed orders are in the History tab.</td></tr>`;
+        }
 
         // Attach fulfillment actions for manual delivery.
         ordersBody.querySelectorAll(".btn-claim-order").forEach((btn) => {
@@ -263,6 +276,9 @@
         });
         ordersBody.querySelectorAll(".btn-delete-order").forEach((btn) => {
             btn.addEventListener("click", () => deleteOrder(btn.getAttribute("data-reference")));
+        });
+        ordersBody.querySelectorAll(".btn-retry-order").forEach((btn) => {
+            btn.addEventListener("click", () => retryOrder(btn.getAttribute("data-reference")));
         });
 
         const fromRow = currentSkip + 1;
@@ -293,6 +309,21 @@
         await loadStats();
         await loadOrders();
         await loadHistory();
+    }
+
+    async function retryOrder(reference) {
+        if (!reference) return;
+        const { ok, data, status: resStatus } = await api(
+            "/admin/orders/" + encodeURIComponent(reference) + "/retry",
+            { method: "POST" },
+        );
+        if (resStatus === 401) return;
+        if (!ok) {
+            alert((data && data.detail) || "Retry failed.");
+            return;
+        }
+        await loadStats();
+        await loadOrders();
     }
 
     async function deleteOrder(reference) {
@@ -368,6 +399,9 @@
                     </tr>`
             )
             .join("");
+        if (!items.length) {
+            historyBody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:1.75rem;color:#94a3b8;">No completed or failed orders yet. Delivered orders will appear here.</td></tr>`;
+        }
 
         const fromRow = currentSkipHistory + 1;
         const toRow = Math.min(currentSkipHistory + items.length, lastHistoryTotal);

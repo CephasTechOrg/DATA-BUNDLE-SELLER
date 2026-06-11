@@ -355,12 +355,28 @@ function initHeaderScroll() {
 function initMobileMenu() {
     const menuBtn = document.querySelector(".mobile-menu");
     const navLinks = document.querySelector(".nav-links");
-    if (menuBtn && navLinks) {
-        menuBtn.addEventListener("click", () => {
-            const isOpen = navLinks.style.display === "flex";
-            navLinks.style.display = isOpen ? "none" : "flex";
-        });
-    }
+    if (!menuBtn || !navLinks) return;
+
+    const setOpen = (open) => {
+        navLinks.classList.toggle("open", open);
+        menuBtn.setAttribute("aria-expanded", open ? "true" : "false");
+        const icon = menuBtn.querySelector("i");
+        if (icon) icon.className = open ? "fas fa-times" : "fas fa-bars";
+    };
+
+    menuBtn.addEventListener("click", () => setOpen(!navLinks.classList.contains("open")));
+
+    // Close as soon as a link is tapped (fixes the "click twice" issue) and after navigating.
+    navLinks.querySelectorAll("a").forEach((link) => {
+        link.addEventListener("click", () => setOpen(false));
+    });
+
+    // Close when tapping outside the menu.
+    document.addEventListener("click", (e) => {
+        if (navLinks.classList.contains("open") && !navLinks.contains(e.target) && !menuBtn.contains(e.target)) {
+            setOpen(false);
+        }
+    });
 }
 
 function initFooterYear() {
