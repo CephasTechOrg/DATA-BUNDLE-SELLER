@@ -16,6 +16,8 @@ if exist "frontend\style" xcopy "frontend\style" "docs\style\" /e /i /y >nul
 if exist "frontend\js" xcopy "frontend\js" "docs\js\" /e /i /y >nul
 if exist "frontend\images" xcopy "frontend\images" "docs\images\" /e /i /y >nul
 
+if exist "frontend\CNAME" copy "frontend\CNAME" "docs\CNAME" >nul
+
 mkdir "docs\admin" 2>nul
 copy "admin\index.html" "docs\admin\"
 copy "admin\style.css" "docs\admin\"

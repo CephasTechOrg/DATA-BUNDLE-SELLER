@@ -17,6 +17,9 @@ cp "$ROOT/frontend/index.html" "$DOCS/"
 [ -d "$ROOT/frontend/js" ]     && cp -r "$ROOT/frontend/js" "$DOCS/"
 [ -d "$ROOT/frontend/images" ] && cp -r "$ROOT/frontend/images" "$DOCS/"
 
+# Preserve the GitHub Pages custom domain (CNAME) so rebuilds don't 404 the domain.
+[ -f "$ROOT/frontend/CNAME" ] && cp "$ROOT/frontend/CNAME" "$DOCS/CNAME"
+
 # Admin -> docs/admin
 mkdir -p "$DOCS/admin"
 cp "$ROOT/admin/index.html" "$ROOT/admin/style.css" "$ROOT/admin/app.js" "$DOCS/admin/"

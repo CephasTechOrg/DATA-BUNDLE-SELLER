@@ -18,6 +18,11 @@ if (Test-Path (Join-Path $root "frontend\style")) { Copy-Item (Join-Path $root "
 if (Test-Path (Join-Path $root "frontend\js")) { Copy-Item (Join-Path $root "frontend\js") (Join-Path $docs "js") -Recurse -Force }
 if (Test-Path (Join-Path $root "frontend\images")) { Copy-Item (Join-Path $root "frontend\images") (Join-Path $docs "images") -Recurse -Force }
 
+# Preserve the GitHub Pages custom domain (CNAME). Without this file GitHub Pages
+# returns 404 for the custom domain. frontend/CNAME is the source of truth.
+$cname = Join-Path $root "frontend\CNAME"
+if (Test-Path $cname) { Copy-Item $cname (Join-Path $docs "CNAME") }
+
 # Copy admin to docs/admin
 $docsAdmin = Join-Path $docs "admin"
 New-Item -ItemType Directory -Path $docsAdmin -Force | Out-Null
