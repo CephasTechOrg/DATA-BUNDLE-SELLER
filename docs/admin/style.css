@@ -929,3 +929,33 @@ body {
 .bundle-tab.active .bundle-tab-count {
     opacity: 0.8;
 }
+
+/* Smooth panel switching */
+.tab-panel.panel-animate {
+    animation: panelFade 0.18s ease;
+}
+@keyframes panelFade {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.tab {
+    transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+/* Revenue tab */
+.revenue-cards { margin-bottom: 1.25rem; }
+.month-pick {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    color: #475569;
+}
+.month-pick input {
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: 8px;
+    font-size: 0.85rem;
+}
+#revenueTable td[data-label="Revenue"] { font-weight: 600; }
+#revenueTable td[data-label="Profit"] { color: #16a34a; font-weight: 600; }

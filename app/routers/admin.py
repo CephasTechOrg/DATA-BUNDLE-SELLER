@@ -169,6 +169,82 @@ def get_stats(
     }
 
 
+@router.get("/revenue")
+def get_revenue(
+    month: Optional[str] = Query(None, description="YYYY-MM (UTC). Defaults to current month."),
+    db: Session = Depends(get_db),
+):
+    """
+    Daily + monthly revenue for a month, in UTC (each day resets at 00:00 UTC).
+
+    Revenue = sum of customer price for paid orders (payment_status='completed').
+    Profit  = revenue - provider_amount (dealer cost actually charged), where known.
+    """
+    now = datetime.now(timezone.utc)
+    if month:
+        try:
+            year, mon = (int(p) for p in month.split("-"))
+            datetime(year, mon, 1)  # validate
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="month must be YYYY-MM")
+    else:
+        year, mon = now.year, now.month
+
+    start = datetime(year, mon, 1, tzinfo=timezone.utc)
+    end = datetime(year + 1, 1, 1, tzinfo=timezone.utc) if mon == 12 else datetime(year, mon + 1, 1, tzinfo=timezone.utc)
+
+    rows = (
+        db.query(Order)
+        .filter(
+            Order.payment_status == "completed",
+            Order.created_at >= start,
+            Order.created_at < end,
+        )
+        .all()
+    )
+
+    days: dict[str, dict] = {}
+    total_revenue = total_profit = 0.0
+    total_orders = 0
+    for o in rows:
+        created = o.created_at
+        if created is None:
+            continue
+        day = created.astimezone(timezone.utc).date().isoformat()
+        rev = float(o.price or 0)
+        entry = days.setdefault(day, {"date": day, "revenue": 0.0, "orders": 0, "profit": 0.0, "profit_complete": True})
+        entry["revenue"] += rev
+        entry["orders"] += 1
+        total_revenue += rev
+        total_orders += 1
+        if o.provider_amount is not None:
+            p = rev - float(o.provider_amount)
+            entry["profit"] += p
+            total_profit += p
+        else:
+            entry["profit_complete"] = False
+
+    day_list = sorted(days.values(), key=lambda d: d["date"], reverse=True)
+    for d in day_list:
+        d["revenue"] = round(d["revenue"], 2)
+        d["profit"] = round(d["profit"], 2)
+
+    today_iso = now.date().isoformat()
+    today_revenue = next((d["revenue"] for d in day_list if d["date"] == today_iso), 0.0)
+    today_orders = next((d["orders"] for d in day_list if d["date"] == today_iso), 0)
+
+    return {
+        "month": f"{year:04d}-{mon:02d}",
+        "today": today_iso,
+        "today_revenue": round(today_revenue, 2),
+        "today_orders": today_orders,
+        "total_revenue": round(total_revenue, 2),
+        "total_profit": round(total_profit, 2),
+        "total_orders": total_orders,
+        "days": day_list,
+    }
+
+
 # ----- Bundles CRUD -----
 
 

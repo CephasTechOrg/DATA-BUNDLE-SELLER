@@ -34,6 +34,7 @@
         <main class="main">
             <nav class="tabs" role="tablist">
                 <button type="button" class="tab active" data-tab="orders" aria-selected="true">Orders</button>
+                <button type="button" class="tab" data-tab="revenue" aria-selected="false">Revenue</button>
                 <button type="button" class="tab" data-tab="bundles" aria-selected="false">Bundles</button>
                 <button type="button" class="tab" data-tab="history" aria-selected="false">History</button>
             </nav>
@@ -113,6 +114,54 @@
                         <button type="button" id="prevBtn" class="btn btn-secondary" disabled>Previous</button>
                         <button type="button" id="nextBtn" class="btn btn-secondary" disabled>Next</button>
                     </div>
+                </div>
+            </section>
+
+            <section class="revenue-section tab-panel" id="panelRevenue" role="tabpanel" hidden>
+                <div class="section-head">
+                    <h2>Revenue</h2>
+                    <div class="actions">
+                        <label class="month-pick">Month
+                            <input type="month" id="revenueMonth">
+                        </label>
+                        <button type="button" id="refreshRevenueBtn" class="btn btn-primary">Refresh</button>
+                    </div>
+                </div>
+
+                <div class="stats-grid revenue-cards">
+                    <div class="stat-card">
+                        <span class="stat-value" id="revToday">—</span>
+                        <span class="stat-label">Today (UTC)</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-value" id="revMonth">—</span>
+                        <span class="stat-label" id="revMonthLabel">This month</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-value" id="revProfit">—</span>
+                        <span class="stat-label">Month profit</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-value" id="revOrders">—</span>
+                        <span class="stat-label">Paid orders (month)</span>
+                    </div>
+                </div>
+
+                <p id="revenueLoading" class="loading" hidden>Loading revenue…</p>
+                <p id="revenueError" class="error" hidden></p>
+
+                <div class="table-wrap">
+                    <table class="orders-table" id="revenueTable">
+                        <thead>
+                            <tr>
+                                <th>Day (UTC)</th>
+                                <th>Orders</th>
+                                <th>Revenue (₵)</th>
+                                <th>Profit (₵)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="revenueBody"></tbody>
+                    </table>
                 </div>
             </section>
 

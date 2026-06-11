@@ -60,7 +60,8 @@ async function handleResponse(res) {
 }
 
 export async function getBundles(onRetry) {
-    const res = await fetchWithRetry(`${BASE_URL}/bundles`, {}, onRetry);
+    // no-store so admin price/bundle edits always show immediately (no stale cache).
+    const res = await fetchWithRetry(`${BASE_URL}/bundles`, { cache: "no-store" }, onRetry);
     return handleResponse(res);
 }
 

@@ -48,6 +48,7 @@
     // ----- History -----
     let currentSkipHistory = 0;
     let lastHistoryTotal = 0;
+    let historyLoaded = false;
     const historyBody = document.getElementById("historyBody");
     const historyLoading = document.getElementById("historyLoading");
     const historyError = document.getElementById("historyError");
@@ -146,6 +147,47 @@
         document.getElementById("statCompleted").textContent = data.completed_orders ?? "—";
         document.getElementById("statFailed").textContent = data.failed_orders ?? "—";
         document.getElementById("statPending").textContent = data.pending_orders ?? "—";
+    }
+
+    // ----- Revenue (daily UTC + monthly) -----
+    let revenueLoaded = false;
+    async function loadRevenue() {
+        const loading = document.getElementById("revenueLoading");
+        const errEl = document.getElementById("revenueError");
+        const body = document.getElementById("revenueBody");
+        const monthInput = document.getElementById("revenueMonth");
+        if (loading) loading.hidden = false;
+        if (errEl) errEl.hidden = true;
+        const month = monthInput && monthInput.value ? monthInput.value : "";
+        const path = "/admin/revenue" + (month ? "?month=" + encodeURIComponent(month) : "");
+        const { ok, data, status: resStatus } = await api(path);
+        if (loading) loading.hidden = true;
+        if (resStatus === 401) return;
+        if (!ok || !data) {
+            if (errEl) { errEl.textContent = "Failed to load revenue."; errEl.hidden = false; }
+            return;
+        }
+        revenueLoaded = true;
+        const money = (v) => "₵" + Number(v || 0).toFixed(2);
+        document.getElementById("revToday").textContent = money(data.today_revenue);
+        document.getElementById("revMonth").textContent = money(data.total_revenue);
+        document.getElementById("revProfit").textContent = money(data.total_profit);
+        document.getElementById("revOrders").textContent = data.total_orders ?? "—";
+        document.getElementById("revMonthLabel").textContent = data.month || "This month";
+        if (monthInput && !monthInput.value) monthInput.value = data.month;
+        const days = data.days || [];
+        body.innerHTML = days.length
+            ? days.map((d) => `<tr>
+                <td data-label="Day">${escapeHtml(d.date)}</td>
+                <td data-label="Orders">${d.orders}</td>
+                <td data-label="Revenue">₵${Number(d.revenue).toFixed(2)}</td>
+                <td data-label="Profit">₵${Number(d.profit).toFixed(2)}${d.profit_complete ? "" : "*"}</td>
+            </tr>`).join("")
+            : `<tr><td colspan="4" style="text-align:center;padding:1.5rem;color:#94a3b8;">No paid orders this month.</td></tr>`;
+        const anyIncomplete = days.some((d) => !d.profit_complete);
+        if (anyIncomplete && body) {
+            body.innerHTML += `<tr><td colspan="4" style="font-size:0.8rem;color:#94a3b8;padding-top:0.5rem;">* profit excludes orders with no recorded provider cost</td></tr>`;
+        }
     }
 
     async function loadOrders() {
@@ -309,6 +351,7 @@
             return;
         }
 
+        historyLoaded = true;
         lastHistoryTotal = data.total ?? 0;
         const items = data.items ?? [];
         historyBody.innerHTML = items
@@ -370,28 +413,39 @@
     }
 
     // ----- Tabs -----
+    let tabsInited = false;
     function initTabs() {
+        if (tabsInited) return;
+        tabsInited = true;
         const tabs = document.querySelectorAll(".tab");
-        const panels = document.querySelectorAll(".tab-panel");
+        const panelById = {
+            orders: document.getElementById("panelOrders"),
+            revenue: document.getElementById("panelRevenue"),
+            bundles: document.getElementById("panelBundles"),
+            history: document.getElementById("panelHistory"),
+        };
         tabs.forEach((tab) => {
             tab.addEventListener("click", () => {
                 const target = tab.getAttribute("data-tab");
                 tabs.forEach((t) => {
-                    t.classList.toggle("active", t.getAttribute("data-tab") === target);
-                    t.setAttribute("aria-selected", t.getAttribute("data-tab") === target ? "true" : "false");
+                    const on = t.getAttribute("data-tab") === target;
+                    t.classList.toggle("active", on);
+                    t.setAttribute("aria-selected", on ? "true" : "false");
                 });
-                panels.forEach((p) => {
-                    const isOrders = p.id === "panelOrders";
-                    const isBundles = p.id === "panelBundles";
-                    const isHistory = p.id === "panelHistory";
-                    p.hidden = !(
-                        (target === "orders" && isOrders) ||
-                        (target === "bundles" && isBundles) ||
-                        (target === "history" && isHistory)
-                    );
+                // Switch panels instantly (no waiting on the network).
+                Object.entries(panelById).forEach(([key, panel]) => {
+                    if (panel) panel.hidden = key !== target;
                 });
-                if (target === "bundles") loadBundles();
-                if (target === "history") {
+                const panel = panelById[target];
+                if (panel) {  // subtle fade-in
+                    panel.classList.remove("panel-animate");
+                    void panel.offsetWidth;
+                    panel.classList.add("panel-animate");
+                }
+                // Lazy-load each tab's data only once; Refresh buttons force a reload.
+                if (target === "revenue" && !revenueLoaded) loadRevenue();
+                if (target === "bundles" && !bundlesLoaded) loadBundles();
+                if (target === "history" && !historyLoaded) {
                     currentSkipHistory = 0;
                     loadHistory();
                 }
@@ -402,6 +456,7 @@
     // ----- Bundles -----
     let allBundles = [];
     let selectedBundleNetwork = "MTN";
+    let bundlesLoaded = false;
 
     function bundleRow(b) {
         const margin = Number(b.selling_price_ghs) - Number(b.cost_price_ghs);
@@ -487,6 +542,7 @@
             return;
         }
         allBundles = data.items || [];
+        bundlesLoaded = true;
         renderBundleTabs();
         renderBundleRows();
     }
@@ -599,6 +655,7 @@
             }
             setAuthToken(data.token);
             showDashboard();
+            initTabs();
             loadStats();
             loadOrders();
         } finally {
@@ -615,6 +672,11 @@
         loadStats();
         loadOrders();
     });
+
+    const refreshRevenueBtn = document.getElementById("refreshRevenueBtn");
+    if (refreshRevenueBtn) refreshRevenueBtn.addEventListener("click", () => loadRevenue());
+    const revenueMonthInput = document.getElementById("revenueMonth");
+    if (revenueMonthInput) revenueMonthInput.addEventListener("change", () => loadRevenue());
 
     exportCsvBtn.addEventListener("click", exportCsv);
     applyFiltersBtn.addEventListener("click", applyFilters);
