@@ -3,5 +3,5 @@ uvicorn
 sqlalchemy
 psycopg2-binary
 python-dotenv
-httpx
+httpx>=0.27,<1.0
 pydantic

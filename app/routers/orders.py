@@ -36,21 +36,27 @@ async def _wallet_can_fulfill(cost_price: float) -> bool:
     through — the post-payment auto-placement + manual_review net still protects a
     paid-but-undeliverable order. We only block when we *know* the wallet is short.
     """
-    result = await resellerxpress_service.get_wallet_balance()
-    if not result.get("ok"):
-        logger.warning("Wallet pre-check unavailable, allowing order: %s", result.get("message"))
-        return True
-    data = result.get("data") or {}
     try:
-        balance = float(data.get("balance"))
-    except (TypeError, ValueError):
-        logger.warning("Wallet pre-check: unparseable balance %r, allowing order", data.get("balance"))
+        result = await resellerxpress_service.get_wallet_balance()
+        if not result.get("ok"):
+            logger.warning("Wallet pre-check unavailable, allowing order: %s", result.get("message"))
+            return True
+        data = result.get("data") or {}
+        try:
+            balance = float(data.get("balance"))
+        except (TypeError, ValueError):
+            logger.warning("Wallet pre-check: unparseable balance %r, allowing order", data.get("balance"))
+            return True
+        required = max(LOW_BALANCE_THRESHOLD, float(cost_price or 0))
+        if balance < required:
+            logger.warning("Order blocked: wallet balance %.2f below required %.2f", balance, required)
+            return False
         return True
-    required = max(LOW_BALANCE_THRESHOLD, float(cost_price or 0))
-    if balance < required:
-        logger.warning("Order blocked: wallet balance %.2f below required %.2f", balance, required)
-        return False
-    return True
+    except Exception as e:
+        # Never let the safety pre-check crash a checkout — fail open and let the
+        # post-payment manual_review net handle any rare shortfall.
+        logger.exception("Wallet pre-check errored, allowing order: %s", e)
+        return True
 
 
 def _get_bundle(db: Session, network: str, capacity: int):

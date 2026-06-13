@@ -28,10 +28,10 @@ async def initialize_payment(email, amount, reference, callback_url=None):
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(url, json=payload, headers=headers)
         body = response.json()
-        if not response.is_success:
+        if not (200 <= response.status_code < 300):
             logger.warning("Paystack API HTTP %s: %s", response.status_code, body)
             return {"status": False, "message": body.get("message", f"Payment provider returned {response.status_code}")}
         return body
-    except httpx.RequestError as e:
+    except httpx.HTTPError as e:
         logger.exception("Paystack request failed: %s", e)
         return {"status": False, "message": "Unable to reach payment provider. Please try again."}

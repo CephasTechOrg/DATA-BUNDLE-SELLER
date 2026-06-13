@@ -52,7 +52,7 @@ def _normalise(response: httpx.Response) -> Dict[str, Any]:
     except ValueError:
         data = {"raw": response.text[:1000]}
 
-    ok = response.is_success
+    ok = 200 <= response.status_code < 300
     message = None
     if isinstance(data, dict):
         message = data.get("message")
@@ -80,7 +80,7 @@ async def get_plans(network: Optional[str] = None) -> Dict[str, Any]:
         async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
             response = await client.get(url, headers=_headers(), params=params)
         return _normalise(response)
-    except httpx.RequestError as exc:
+    except httpx.HTTPError as exc:
         return _error_result(exc)
 
 
@@ -116,7 +116,7 @@ async def place_order(
             request_id, result["status_code"], result["data"],
         )
         return result
-    except httpx.RequestError as exc:
+    except httpx.HTTPError as exc:
         return _error_result(exc)
 
 
@@ -128,7 +128,7 @@ async def get_order_status(request_id: str) -> Dict[str, Any]:
         async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
             response = await client.get(url, headers=_headers(), params={"request_id": request_id})
         return _normalise(response)
-    except httpx.RequestError as exc:
+    except httpx.HTTPError as exc:
         return _error_result(exc)
 
 
@@ -140,7 +140,7 @@ async def get_wallet_balance() -> Dict[str, Any]:
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.get(url, headers=_headers())
         return _normalise(response)
-    except httpx.RequestError as exc:
+    except httpx.HTTPError as exc:
         return _error_result(exc)
 
 
@@ -152,7 +152,7 @@ async def get_reprocessable_orders() -> Dict[str, Any]:
         async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
             response = await client.get(url, headers=_headers())
         return _normalise(response)
-    except httpx.RequestError as exc:
+    except httpx.HTTPError as exc:
         return _error_result(exc)
 
 
@@ -164,7 +164,7 @@ async def reprocess_order(provider_order_id: int) -> Dict[str, Any]:
         async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
             response = await client.post(url, headers=_headers())
         return _normalise(response)
-    except httpx.RequestError as exc:
+    except httpx.HTTPError as exc:
         return _error_result(exc)
 
 
@@ -177,5 +177,5 @@ async def configure_webhook(url: str, events: list[str], enabled: bool = True) -
         async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
             response = await client.post(endpoint, headers=_headers(json_body=True), json=payload)
         return _normalise(response)
-    except httpx.RequestError as exc:
+    except httpx.HTTPError as exc:
         return _error_result(exc)
